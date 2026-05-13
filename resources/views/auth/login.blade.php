@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Lynx School - Result Management System</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/lynx_logo') }}">
     <link
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Poppins:wght@300;400;500;600&display=swap"
         rel="stylesheet">
@@ -43,7 +44,7 @@
         .landing-side {
             background-image:
                 linear-gradient(360deg, rgb(220 20 60 / 52%), #1a1a2ee8),
-                url('{{ asset('assets/auth/images/lynx-bg.png') }}');
+                url('{{ asset('images/bgimage.jpeg') }}');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -434,9 +435,9 @@
             font-weight: bold !important;
         }
 
-        .logo-img{
+        .logo-img {
             height: 80px;
-            position:absolute ;
+            position: absolute;
             top: 20px;
             left: 20px;
         }
@@ -467,17 +468,13 @@
                     {{-- <p>Enter your credentials</p> --}}
                 </div>
 
-                <!-- User Type Selection -->
-                <div class="user-type-selector">
-                    <button type="button" class="user-type-btn active" data-type="Admin">Admin</button>
-                    <button type="button" class="user-type-btn" data-type="Teacher">Teacher</button>
-                </div>
+                
 
                 <!-- Login Form -->
                 <form method="POST" action="{{ route('login') }}" id="loginForm">
                     @csrf
 
-                    <input type="hidden" name="user_type" id="userType" value="Admin">
+                    {{-- <input type="hidden" name="user_type" id="userType" value="Admin"> --}}
 
                     <div class="form-group">
                         <label for="email">Email Address</label>
@@ -544,20 +541,6 @@
         // Start typing when page loads
         window.addEventListener('load', () => {
             setTimeout(type, 800); // Delay before starting
-        });
-
-        // User type selection
-        const userTypeBtns = document.querySelectorAll('.user-type-btn');
-        const userTypeInput = document.getElementById('userType');
-
-        userTypeBtns.forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-
-                userTypeBtns.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                userTypeInput.value = this.getAttribute('data-type');
-            });
         });
 
         // Form submission with loading state

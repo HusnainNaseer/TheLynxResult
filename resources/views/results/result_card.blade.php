@@ -202,179 +202,188 @@
 </head>
 
 <body>
-    <div class="report-card">
-        <!-- Header -->
-        <div class="header position-relative">
-            <div class="header-title">
-                <div class=""></div>
-                <div class=""></div>
-                <h1 class="school-name">The Lynx School</h1>
-                <img src="{{ asset('images/lynx_logo.png') }}" alt="Lynx Logo" class="school-logo">
+    @forelse ($subjects as $student)
+        <div class="report-card">
+            <!-- Header -->
+            <div class="header position-relative">
+                <div class="header-title">
+                    <div class=""></div>
+                    <div class=""></div>
+                    <h1 class="school-name">The Lynx School</h1>
+                    <img src="{{ asset('images/lynx_logo.png') }}" alt="Lynx Logo" class="school-logo">
 
+                </div>
+                <div class="school-info">
+                    <div>699, Rehman Baba Road Sector I-8/4 Islamabad</div>
+                    <div>Phone: 051-4860932 &nbsp;&nbsp; Email: info@thelynxschool.edu.pk</div>
+                </div>
             </div>
-            <div class="school-info">
-                <div>699, Rehman Baba Road Sector I-8/4 Islamabad</div>
-                <div>Phone: 051-4860932 &nbsp;&nbsp; Email: info@thelynxschool.edu.pk</div>
-            </div>
-        </div>
 
-        <!-- Report Title -->
-        <div class="report-title">First Term Report Card</div>
-        <div class="report-title" style="background: #dddbdb;">Academic Year
-            {{ @$student->session ? $student->session->title : '' }}</div>
+            <!-- Report Title -->
+            <div class="report-title">First Term Report Card</div>
+            <div class="report-title" style="background: #dddbdb;">Academic Year
+                {{ @$student->session ? $student->session->title : '' }}</div>
 
-        <!-- Student Information -->
-        <table class="student-info-table" width="95%">
-            <tr>
-                <td class="label-cell"><b>Serial No:</b></td>
-                <td width="15%">{{ $student->id }}</td>
-                <td class="label-cell"><b>Class / Sec:</b></td>
-                <td width="15%">{{ $student->class }} / {{ $student->section }}</td>
-                <td class="label-cell"><b>Attendance:</b></td>
-                <td width="15%"> {{ $student->t1_working_days }} /
-                    {{ @$student->session ? $student->session->t1_working_days : '' }}</td>
-            </tr>
-            <tr>
-                <td class="label-cell"><b>Student Name:</b></td>
-                <td colspan="3">{{ $student->name }}</td>
-                <td class="label-cell"><b>Roll No:</b></td>
-                <td>{{ $student->rollno }}</td>
-            </tr>
-        </table>
-
-        <!-- Marks Table -->
-        <table class="marks-table" width="95%">
-            <thead>
+            <!-- Student Information -->
+            <table class="student-info-table" width="95%">
                 <tr>
-                    <th width="5%"></th>
-                    <th width="40%">Subject</th>
-                    <th width="18%">Total Marks</th>
-                    <th width="18%">Marks Obtained</th>
-                    <th width="19%">Subject Grade</th>
+                    <td class="label-cell"><b>Serial No:</b></td>
+                    <td width="15%">{{ $student->id }}</td>
+                    <td class="label-cell"><b>Class / Sec:</b></td>
+                    <td width="15%">{{ $student->class }} / {{ $student->section }}</td>
+                    <td class="label-cell"><b>Attendance:</b></td>
+                    <td width="15%"> {{ $student->t1_working_days }} /
+                        {{ @$student->session ? $student->session->t1_working_days : '' }}</td>
                 </tr>
-            </thead>
-            <tbody>
-                {{-- @dd($student->marks) --}}
-                @php
-                    $total_marks = 0;
-                    $total_obtained = 0;
-                @endphp
-                @foreach ($student->marks as $mark)
+                <tr>
+                    <td class="label-cell"><b>Student Name:</b></td>
+                    <td colspan="3">{{ $student->name }}</td>
+                    <td class="label-cell"><b>Roll No:</b></td>
+                    <td>{{ $student->rollno }}</td>
+                </tr>
+            </table>
+
+            <!-- Marks Table -->
+            <table class="marks-table" width="95%">
+                <thead>
                     <tr>
-                        <td>{{ $loop->iteration }}</td>
-                        <td style="text-align: left; padding-left: 20px;"><b>{{ @$mark->subject->subject_name }}</b>
-                        </td>
-                        <td>{{ @$mark->subject->term_one_marks }}</td>
-                        <td>{{ @$mark->term_one_mark }}</td>
-                        <td>{{ @$mark->term_one_grade }}</td>
+                        <th width="5%"></th>
+                        <th width="40%">Subject</th>
+                        <th width="18%">Total Marks</th>
+                        <th width="18%">Marks Obtained</th>
+                        <th width="19%">Subject Grade</th>
                     </tr>
+                </thead>
+                <tbody>
+                    {{-- @dd($student->marks) --}}
                     @php
-                        $total_marks += @$mark->subject->term_one_marks;
-                        $total_obtained += $mark->term_one_mark;
-
+                        $total_marks = 0;
+                        $total_obtained = 0;
                     @endphp
-                @endforeach
-                <tr class="total-row">
-                    <td></td>
-                    <td style="text-align: right; padding-right: 20px;"><b>Total</b></td>
-                    <td>{{ $total_marks }}</td>
-                    <td>{{ $total_obtained }}</td>
-                    <td></td>
+                    @foreach ($student->marks as $mark)
+                        <tr>
+                            <td>{{ $loop->iteration }}</td>
+                            <td style="text-align: left; padding-left: 20px;">
+                                <b>{{ @$mark->subject->subject_name }}</b>
+                            </td>
+                            <td>{{ @$mark->subject->term_one_marks }}</td>
+                            <td>{{ @$mark->term_one_mark }}</td>
+                            <td>{{ @$mark->term_one_grade }}</td>
+                        </tr>
+                        @php
+                            $total_marks += @$mark->subject->term_one_marks;
+                            $total_obtained += $mark->term_one_mark;
+
+                        @endphp
+                    @endforeach
+                    <tr class="total-row">
+                        <td></td>
+                        <td style="text-align: right; padding-right: 20px;"><b>Total</b></td>
+                        <td>{{ $total_marks }}</td>
+                        <td>{{ $total_obtained }}</td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+            @php
+                function calculatePercentage($obtained, $total)
+                {
+                    if ($total == 0) {
+                        return 0;
+                    }
+                    return ($obtained / $total) * 100;
+                }
+
+                function calculateGrade($percent)
+                {
+                    if ($percent >= 90) {
+                        return 'A+';
+                    }
+                    if ($percent >= 80) {
+                        return 'A';
+                    }
+                    if ($percent >= 70) {
+                        return 'B';
+                    }
+                    if ($percent >= 60) {
+                        return 'C';
+                    }
+                    if ($percent >= 50) {
+                        return 'D';
+                    }
+                    return 'F';
+                }
+                $overall_percentage = calculatePercentage($total_obtained, $total_marks);
+                $overall_grade = calculateGrade($overall_percentage);
+
+            @endphp
+            <!-- Grade and Percentage -->
+            <div class="grade-section">
+                <div>
+                    <strong>Grade:</strong>
+                    <span class="grade-box">&nbsp{{ $overall_grade }}</span>
+                </div>
+                <div>
+                    <strong>Overall Percentage:</strong>
+                    <span class="percentage-box">{{ round($overall_percentage, 2) }}</span>
+                    <strong>%</strong>
+                </div>
+            </div>
+
+            <!-- Grading System -->
+            {{-- <div class="grading-system">Grading System</div> --}}
+            <table class="grading-table" width="80%" style="margin: 20px auto;">
+                <tr>
+                    <td colspan="7" class="grading-system">Grading System</td>
                 </tr>
-            </tbody>
-        </table>
-        @php
-            function calculatePercentage($obtained, $total)
-            {
-                if ($total == 0) {
-                    return 0;
-                }
-                return ($obtained / $total) * 100;
-            }
+                <tr>
+                    <td>90 - 100</td>
+                    <td>80 - 89</td>
+                    <td>70 - 79</td>
+                    <td>60 - 69</td>
+                    <td>50 - 59</td>
+                    <td>40 - 49</td>
+                    <td>30 - 39</td>
+                </tr>
+                <tr>
+                    <td>A+</td>
+                    <td>A</td>
+                    <td>B</td>
+                    <td>C</td>
+                    <td>D</td>
+                    <td>E</td>
+                    <td>U</td>
+                </tr>
+            </table>
 
-            function calculateGrade($percent)
-            {
-                if ($percent >= 90) {
-                    return 'A+';
-                }
-                if ($percent >= 80) {
-                    return 'A';
-                }
-                if ($percent >= 70) {
-                    return 'B';
-                }
-                if ($percent >= 60) {
-                    return 'C';
-                }
-                if ($percent >= 50) {
-                    return 'D';
-                }
-                return 'F';
-            }
-            $overall_percentage = calculatePercentage($total_obtained, $total_marks);
-            $overall_grade = calculateGrade($overall_percentage);
-
-        @endphp
-        <!-- Grade and Percentage -->
-        <div class="grade-section">
-            <div>
-                <strong>Grade:</strong>
-                <span class="grade-box">&nbsp{{ $overall_grade }}</span>
+            <!-- Teacher's Remarks -->
+            <div class="remarks-section">
+                <div style="line-height: 1.6; text-align: justify;">
+                    <b>Teacher's Remarks:</b>
+                    <p>{{ $student->remarks ?? 'No remarks provided.' }}</p>
+                </div>
             </div>
-            <div>
-                <strong>Overall Percentage:</strong>
-                <span class="percentage-box">{{ round($overall_percentage, 2) }}</span>
-                <strong>%</strong>
+
+
+            <!-- Signatures -->
+            <div class="signatures">
+                <div class="signature-block">
+                    <div class="signature-line">Arsalan Saeed</div>
+                    <div><b>Class Teacher</b></div>
+                </div>
+                <div class="signature-block">
+                    <div class="signature-line">Mrs. Atiya Mahroof</div>
+                    <div><b>Principal</b></div>
+                </div>
             </div>
         </div>
-
-        <!-- Grading System -->
-        {{-- <div class="grading-system">Grading System</div> --}}
-        <table class="grading-table" width="80%" style="margin: 20px auto;">
-            <tr>
-                <td colspan="7" class="grading-system">Grading System</td>
-            </tr>
-            <tr>
-                <td>90 - 100</td>
-                <td>80 - 89</td>
-                <td>70 - 79</td>
-                <td>60 - 69</td>
-                <td>50 - 59</td>
-                <td>40 - 49</td>
-                <td>30 - 39</td>
-            </tr>
-            <tr>
-                <td>A+</td>
-                <td>A</td>
-                <td>B</td>
-                <td>C</td>
-                <td>D</td>
-                <td>E</td>
-                <td>U</td>
-            </tr>
-        </table>
-
-        <!-- Teacher's Remarks -->
-        <div class="remarks-section">
-            <div style="line-height: 1.6; text-align: justify;">
-                <b>Teacher's Remarks:</b>
-                <p>{{ $student->remarks ?? 'No remarks provided.' }}</p>
-            </div>
+        <div style="page-break-after: always;"></div>
+    @empty
+        <div style="padding: 40px; text-align: center;">
+            <h2>No Results Found</h2>
+            <p>No student results are available for display.</p>
         </div>
-
-
-        <!-- Signatures -->
-        <div class="signatures">
-            <div class="signature-block">
-                <div class="signature-line">Arsalan Saeed</div>
-                <div><b>Class Teacher</b></div>
-            </div>
-            <div class="signature-block">
-                <div class="signature-line">Mrs. Atiya Mahroof</div>
-                <div><b>Principal</b></div>
-            </div>
-        </div>
-    </div>
+    @endforelse
 </body>
 
 </html>

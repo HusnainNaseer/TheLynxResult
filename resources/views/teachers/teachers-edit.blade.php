@@ -84,19 +84,20 @@
                                     <tbody>
                                         <tr>
                                             <td class="fw-medium">Branch Name:</td>
-                                            <td>{{ $user->branch_name ?? 'N/A' }}</td>
-                                        </tr>
+                                            <td>{{ $user->branch['name'] ?? 'N/A' }}</td>
+                                        </tr> 
+                                        {{-- @dd($user->branch)  --}}
                                         <tr>
                                             <td class="fw-medium">Email:</td>
-                                            <td>{{ $user->branch_email ?? 'N/A' }}</td>
+                                            <td>{{ $user->branch['email'] ?? 'N/A' }}</td>
                                         </tr>
                                         <tr>
                                             <td class="fw-medium">Phone:</td>
-                                            <td>{{ $user->branch_phone ?? 'N/A' }}</td>
+                                            <td>{{ $user->branch['school_details']['phone_no'] ?? 'N/A' }}</td>
                                         </tr>
                                         <tr>
                                             <td class="fw-medium">Address:</td>
-                                            <td>{{ $user->branch_address ?? 'N/A' }}</td>
+                                            <td>{{ $user->branch['school_details']['address'] ?? 'N/A' }}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -113,26 +114,7 @@
 
                             <form id="profileInfoForm">
                                 @csrf
-                                @method('PATCH')
-
-                                <!-- Personal Information -->
-                                <div class="row mb-4">
-                                    <div class="col-12">
-                                        <h6 class="text-primary mb-3"><i class="ri-user-line"></i> Personal Information</h6>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label for="name" class="form-label">Name *</label>
-                                        <input type="text" class="form-control" id="name" name="name"
-                                            value="{{ old('name', $user->name) }}" required>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label for="email" class="form-label">Email *</label>
-                                        <input type="email" class="form-control" id="email" name="email"
-                                            value="{{ old('email', $user->email) }}" required>
-                                    </div>
-                                </div>
+                                @method('POST')
 
                                 <hr>
 
@@ -145,10 +127,38 @@
 
                                     <div class="col-md-6 mb-3">
                                         <label for="branch_name" class="form-label">Branch Name *</label>
-                                        <input type="text" class="form-control" id="branch_name" name="branch_name"
-                                            value="{{ old('branch_name', $user->branch_name) }}"
-                                            placeholder="Enter branch name" required>
+
+                                        <select name="branch" id="branches" class="form-control">
+                                            <option value="">-- Select Branch --</option>
+
+                                            @foreach ($branchesSelect as $id => $name)
+                                                <option value="{{ $id }}"
+                                                    {{ old('branch', $user->branch_id) == $id ? 'selected' : '' }}>
+                                                    {{ $name }}
+                                                </option>
+                                            @endforeach
+
+                                        </select>
+
                                     </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="class_name" class="form-label">class Name *</label>
+
+                                        <select name="class" id="classes" class="form-control">
+                                            <option value="">-- Select class --</option>
+
+                                            @foreach ($classesSelect as $id => $name)
+                                                <option value="{{ $id }}"
+                                                    {{ old('class', $user->class_id) == $id ? 'selected' : '' }}>
+                                                    {{ $name }}
+                                                </option>
+                                            @endforeach
+
+                                        </select>
+
+                                    </div>
+
+                                    
 
                                     <div class="col-md-6 mb-3">
                                         <label for="branch_email" class="form-label">Branch Email *</label>
@@ -166,7 +176,7 @@
 
                                     <div class="col-md-6 mb-3">
                                         <label for="branch_address" class="form-label">Branch Address *</label>
-                                        <textarea class="form-control" id="branch_address" required namea="branch_address" rows="1"
+                                        <textarea class="form-control" id="branch_address" required name="branch_address" rows="1"
                                             placeholder="Enter branch address">{{ old('branch_address', $user->branch_address) }}</textarea>
                                     </div>
                                 </div>
@@ -312,7 +322,7 @@
                 const formData = new FormData(this);
 
                 $.ajax({
-                    url: "{{ route('profile.picture.update',$user->id) }}",
+                    url: "{{ route('profile.picture.update', $user->id) }}",
                     type: 'POST',
                     data: formData,
                     processData: false,
@@ -341,7 +351,7 @@
                 e.preventDefault();
 
                 $.ajax({
-                    url: "{{ route('profile.update',$user->id) }}",
+                    url: "{{ route('profile.update', $user->id) }}",
                     type: 'PATCH',
                     data: $(this).serialize(),
                     success: function(response) {
@@ -411,6 +421,85 @@
                     `);
                     }
                 });
+            });
+
+            const apiBaseUrl = "{{ request()->root() }}";
+            const apiBranchesUrl = `${apiBaseUrl}/api/branches`;
+            const apiClassesUrl = `${apiBaseUrl}/get-classes`;
+            const currentBranchId = "{{ $user->branch_id ?? '' }}";
+            const currentClassId = "{{ $user->class_id ?? '' }}";
+
+            function populateBranchDropdown(branches) {
+                const branchSelect = $('#branches');
+                branchSelect.empty().append('<option value="">-- Select Branch --</option>');
+
+                $.each(branches, function(index, branch) {
+                    const selected = branch.id == currentBranchId ? ' selected' : '';
+                    branchSelect.append(
+                        '<option value="' + branch.id + '"' + selected + '>' + (branch.branch_name || branch.name || branch.title || '') + '</option>'
+                    );
+                });
+            }
+
+            function populateClassDropdown(classes, selectedClassId) {
+                const classSelect = $('#classes');
+                classSelect.empty().append('<option value="">-- Select class --</option>');
+
+                $.each(classes, function(index, item) {
+                    const selected = item.id == selectedClassId ? ' selected' : '';
+                    classSelect.append(
+                        '<option value="' + item.id + '"' + selected + '>' + (item.name || item.class_name || item.title || '') + '</option>'
+                    );
+                });
+            }
+
+            function fetchBranches() {
+                $.get(apiBranchesUrl)
+                    .done(function(data) {
+                        const branches = data.data || data;
+                        if (Array.isArray(branches) && branches.length) {
+                            populateBranchDropdown(branches);
+                            if (currentBranchId) {
+                                fetchClasses(currentBranchId, currentClassId);
+                            }
+                        }
+                    })
+                    .fail(function() {
+                        console.error('Failed to load branches for edit page');
+                    });
+            }
+
+            function fetchClasses(branchId, selectedClassId = '') {
+                if (!branchId) {
+                    $('#classes').empty().append('<option value="">-- Select class --</option>');
+                    return;
+                }
+
+                $.ajax({
+                    url: apiClassesUrl,
+                    type: 'GET',
+                    data: {
+                        branch_id: branchId
+                    },
+                    success: function(data) {
+                        const classes = data.data || data;
+                        if (Array.isArray(classes) && classes.length) {
+                            populateClassDropdown(classes, selectedClassId);
+                        } else {
+                            $('#classes').empty().append('<option value="">-- Select class --</option>');
+                        }
+                    },
+                    error: function() {
+                        $('#classes').empty().append('<option value="">-- Select class --</option>');
+                    }
+                });
+            }
+
+            fetchBranches();
+
+            $('#branches').on('change', function() {
+                var branchId = $(this).val();
+                fetchClasses(branchId);
             });
         });
     </script>

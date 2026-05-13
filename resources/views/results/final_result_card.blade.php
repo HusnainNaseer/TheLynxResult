@@ -198,11 +198,11 @@
             </div>
             <div class="school-info">
                 <span style="font-size: 18px;">
-                    {{ Auth::user()->branch_name ?? 'N/A' }} <br>
+                    {{ $creator->branch_name ?? 'N/A' }}
                 </span>
-                Adress: {{ Auth::user()->branch_address ?? 'N/A' }}<br>
-               Contact No: {{ Auth::user()->branch_phone ?? 'N/A' }} &nbsp;|
-               Email: &nbsp; {{ Auth::user()->branch_email ?? 'N/A' }}</a>
+                Adress: {{ $creator->branch_address ?? 'N/A' }}<br>
+                Contact No: {{ $creator->branch_phone ?? 'N/A' }} &nbsp;|
+                Email: &nbsp; {{ $creator->branch_email ?? 'N/A' }}
             </div>
             {{-- <img src="{{ asset('images/lynx_logo.png') }}" class="logo"> --}}
 
@@ -362,8 +362,10 @@
                     <td></td>
                     <td></td>
                     <td>Attendance:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b
-                            style="text-decoration: underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{{ $student->attendance }} / {{ @$student->session ? $student->session->t1_working_days +  $student->session->t2_working_days : '0' }}
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</b></td>
+                            style="text-decoration: underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{{ $student->attendance }}
+                            /
+                            {{ @$student->session ? $student->session->t1_working_days + $student->session->t2_working_days : '0' }}
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</b></td>
                     <td>Term-1
                         Rank:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                         ______________

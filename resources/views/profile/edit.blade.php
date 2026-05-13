@@ -189,7 +189,7 @@
 
                             <form id="passwordForm">
                                 @csrf
-                                @method('PUT')
+                                {{-- @method('PUT') --}}
 
                                 <div class="row">
                                     <div class="col-md-12 mb-3">
@@ -368,8 +368,8 @@
                 e.preventDefault();
 
                 $.ajax({
-                    url: "{{ route('password.update' ,Auth::user()->id) }}",
-                    type: 'PUT',
+                    url: "{{ route('password.update') }}",
+                    type: 'POST',
                     data: $(this).serialize(),
                     success: function(response) {
                         $('#passwordForm')[0].reset();
@@ -378,7 +378,9 @@
                             ${response.message || 'Password updated successfully'}
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
+                        
                     `);
+                    // console.log(response);
                     },
                     error: function(xhr) {
                         $('#passwordMessage').html(`

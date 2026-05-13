@@ -1,10 +1,10 @@
 @extends('layouts.main')
 @section('content')
-<style>
-    .pagination nav{
-        width: 100% !important;
-    }
-</style>
+    <style>
+        .pagination nav {
+            width: 100% !important;
+        }
+    </style>
     <div class="page-content">
         <div class="container-fluid">
 
@@ -15,8 +15,11 @@
                     <div class="col-md-4">
                         <select id="userFilter" class="form-control">
                             <option value="">All Branches Result</option>
-                            @foreach ($users as $user)
-                                <option value="{{ $user->id }}">{{ $user->branch_name }}</option>
+
+                            @foreach ($branches as $branch)
+                                <option value="{{ $branch->id }}">
+                                    {{ $branch->name }}
+                                </option>
                             @endforeach
                         </select>
                     </div>
@@ -28,9 +31,9 @@
 
                     <div class="d-flex justify-content-between mb-3">
                         <input type="search" id="search" class="form-control w-25" placeholder="Search student">
-                        @role('Teacher')
-                        <a href="{{ route('results.create') }}" class="btn btn-primary">Create</a>
-                        @endrole
+                        {{-- @role('Teacher') --}}
+                            <a href="{{ route('results.create') }}" class="btn btn-primary">Create</a>
+                        {{-- @endrole --}}
                     </div>
 
                     <div class="table-responsive">
@@ -68,20 +71,20 @@
                                             <a href="{{ route('results.show', $result->id) }}" class="btn btn-info btn-sm">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            @role('Teacher')
-                                            <a href="{{ route('results.edit', $result->id) }}"
-                                                class="btn btn-warning btn-sm">
-                                                <i class="ri-edit-line"></i>
-                                            </a>
-                                            <form action="{{ route('results.destroy', $result->id) }}" method="POST"
-                                                class="d-inline"
-                                                onsubmit="return confirm('Are you sure you want to delete this result?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button class="btn btn-danger btn-sm">
-                                                    <i class="ri-delete-bin-line"></i>
-                                                </button>
-                                                @endrole
+                                            {{-- @role('Teacher') --}}
+                                                <a href="{{ route('results.edit', $result->id) }}"
+                                                    class="btn btn-warning btn-sm">
+                                                    <i class="ri-edit-line"></i>
+                                                </a>
+                                                <form action="{{ route('results.destroy', $result->id) }}" method="POST"
+                                                    class="d-inline"
+                                                    onsubmit="return confirm('Are you sure you want to delete this result?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button class="btn btn-danger btn-sm">
+                                                        <i class="ri-delete-bin-line"></i>
+                                                    </button>
+                                                {{-- @endrole --}}
                                             </form>
                                         </td>
                                     </tr>
@@ -136,21 +139,25 @@
                         <td>${r.session ? r.session.title : 'N/A'}</td>
                         <td>${r.attendance ?? 0}</td>
                         <td>
-                            <a href="/results/${r.id}" class="btn btn-info btn-sm">
-                                <i class="ri-eye-line"></i>
-                            </a>
-                            <a href="/results/${r.id}/edit" class="btn btn-warning btn-sm">
-                                <i class="ri-edit-line"></i>
-                            </a>
-                            <form action="/results/${r.id}" method="POST" class="d-inline"
-                                  onsubmit="return confirm('Are you sure you want to delete this result?')">
-                                <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                                <input type="hidden" name="_method" value="DELETE">
-                                <button class="btn btn-danger btn-sm">
-                                    <i class="ri-delete-bin-line"></i>
-                                </button>
-                            </form>
-                        </td>
+    <a href="{{ url('results') }}/${r.id}" class="btn btn-info btn-sm">
+        <i class="ri-eye-line"></i>
+    </a>
+    
+    <a href="{{ url('results') }}/${r.id}/edit" class="btn btn-warning btn-sm">
+        <i class="ri-edit-line"></i>
+    </a>
+
+    <form action="{{ url('results') }}/${r.id}" method="POST" class="d-inline"
+          onsubmit="return confirm('Are you sure you want to delete this result?')">
+
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="_method" value="DELETE">
+
+        <button class="btn btn-danger btn-sm">
+            <i class="ri-delete-bin-line"></i>
+        </button>
+    </form>
+</td>
                     </tr>`;
                         });
                     });

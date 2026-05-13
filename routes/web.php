@@ -7,6 +7,12 @@ use App\Http\Controllers\SubjectWiseMarksController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\TeachersController;
+use App\Http\Controllers\FetchApiController;
+use App\Http\Controllers\SectionsController;
+use App\Http\Controllers\AssignSubjectController;
+use App\Http\Controllers\ClassesController;
+use App\Http\Controllers\ClassSectionController;
+use App\Http\Controllers\ClassSubjectController;
 use Illuminate\Support\Facades\Route;
 use App\Models\StudentResult;
 use App\Models\Session;
@@ -32,11 +38,11 @@ Route::get('/test-role', function () {
 })->middleware('auth');
 
 Route::middleware(['auth', 'role:Admin'])->group(function () {
-    Route::get('/teahers',[TeachersController::class, 'index'])->name('teachers.index');
-    Route::get('/teahers/create',[TeachersController::class, 'create'])->name('teachers.create');
-    Route::post('/teahers/create',[TeachersController::class, 'store'])->name('teachers.store');
-    Route::post('/teachers/edit/{id}',[TeachersController::class, 'teacher_edit'])->name('teachers.edit');
-    Route::post('/teachers/password/change',[AuthPasswordController::class, 'teacherpassreset'])->name('teacherpass.reset');
+    Route::get('/teachers', [TeachersController::class, 'index'])->name('teachers.index');
+    Route::get('/teachers/create', [TeachersController::class, 'create'])->name('teachers.create');
+    Route::post('/teachers/store', [TeachersController::class, 'store'])->name('teachers.store');
+    Route::get('/teachers/edit/{id}', [TeachersController::class, 'teacher_edit'])->name('teachers.edit');
+    Route::post('/teachers/password/change', [AuthPasswordController::class, 'teacherpassreset'])->name('teacherpass.reset');
 });
 
 /*
@@ -45,6 +51,7 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::get('/', function () {
+    // return view('results.result_card');
     return redirect()->route('login');
 });
 
@@ -132,44 +139,13 @@ Route::post('/users/{id}/revoke', [TeachersController::class, 'revokeTeacherRole
 | RESULTS & RELATED (ONLY ADDITION IS ADMIN FILTER SUPPORT)
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth','role:Admin|Teacher')->group(function () {
+Route::middleware('auth', 'role:Admin|Teacher')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile/{id}', [ProfileController::class, 'update'])->name('profile.update');
-    Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
+    Route::post('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    Route::post('/profile/{id}/
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    picture', [ProfileController::class, 'updateProfilePicture'])->name('profile.picture.update');
+    Route::post('/profile/{id}/ picture', [ProfileController::class, 'updateProfilePicture'])->name('profile.picture.update');
 
     /*
     |--------------------------------------------------------------------------
@@ -208,7 +184,7 @@ Route::middleware('auth','role:Admin|Teacher')->group(function () {
     Route::get('/subject/search', [SubjectWiseMarksController::class, 'search_subject'])
         ->name('subjects.search');
 
-        
+
 
     Route::get('/subject-total-marks', [SubjectWiseMarksController::class, 'subject_total_marks'])
         ->name('subject-total-marks');
@@ -216,11 +192,78 @@ Route::middleware('auth','role:Admin|Teacher')->group(function () {
     Route::get('/session-working-days', [SessionController::class, 'session_working_days'])
         ->name('session.working-days');
 
-    Route::get('session/search',[SessionController::class, 'session_search'])
+    Route::get('session/search', [SessionController::class, 'session_search'])
         ->name('session.search');
 
     Route::resource('subject-marks', SubjectWiseMarksController::class);
     Route::resource('sessions', SessionController::class);
+
+    //fetch student route
+
+
+});
+require __DIR__ . '/auth.php';
+
+
+
+// ── FetchApi routes ──────────────────────────────────────────
+Route::get('get-students',                [FetchApiController::class, 'getstudents'])->name('getstudents');
+Route::get('get-classes',                 [FetchApiController::class, 'getclasses'])->name('getclasses');
+Route::get('get-branches',                [FetchApiController::class, 'getbranches'])->name('getbranches');
+Route::get('get-branchemployee',          [FetchApiController::class, 'getbranchemployee'])->name('getbranchemployee');
+Route::get('api/branches',                [FetchApiController::class, 'getbranches'])->name('api.branches');
+Route::get('api/employees',               [FetchApiController::class, 'getbranchemployee'])->name('api.employees');
+Route::get('api/employees/{employeeId}',  [FetchApiController::class, 'getemployeedetails'])->name('api.employee.details');
+
+
+// Assign Subjects CRUD
+Route::prefix('assign-subjects')->name('assign-subjects.')->group(function () {
+
+    // Teacher list (only Teachers)
+    Route::get('/',                 [AssignSubjectController::class, 'index'])->name('index');
+
+    // Show the assignment form for a specific teacher
+    Route::get('/{teacher}/create', [AssignSubjectController::class, 'create'])->name('create');
+
+    // Store a new assignment
+    Route::post('/store',           [AssignSubjectController::class, 'store'])->name('store');
+
+    // Delete an assignment
+    Route::delete('/{assignment}',  [AssignSubjectController::class, 'destroy'])->name('destroy');
+
+    // ERP API proxies (called via AJAX from the form)
+    Route::get('/api/branches',     [AssignSubjectController::class, 'apiBranches'])->name('api.branches');
+    Route::get('/api/classes',      [AssignSubjectController::class, 'apiClasses'])->name('api.classes');
+    Route::get('/api/sections',     [AssignSubjectController::class, 'apiSections'])->name('api.sections');
+    Route::get('/api/subjects',     [AssignSubjectController::class, 'apiSubjects'])->name('api.subjects');
 });
 
-require __DIR__ . '/auth.php';
+Route::middleware(['auth', 'role:Admin'])->group(function () {
+    Route::get('/classes',        [ClassesController::class, 'index'])->name('classes.index');
+    Route::post('/classes/sync',  [ClassesController::class, 'sync'])->name('classes.sync');
+    Route::post('/classes/resync', [ClassesController::class, 'resync'])->name('classes.resync');
+});
+
+Route::middleware(['auth', 'role:Admin'])->group(function () {
+    Route::get('/sections',         [SectionsController::class, 'index'])->name('sections.index');
+    Route::post('/sections/sync',   [SectionsController::class, 'sync'])->name('sections.sync');
+    Route::post('/sections/resync', [SectionsController::class, 'resync'])->name('sections.resync');
+});
+
+// ── Class Sections ────────────────────────────────────────────────────────
+// Add this block to web.php alongside the existing classes / sections groups.
+
+Route::middleware(['auth', 'role:Admin'])->group(function () {
+    Route::get('/class-sections',         [ClassSectionController::class, 'index'])->name('class-sections.index');
+    Route::post('/class-sections/sync',   [ClassSectionController::class, 'sync'])->name('class-sections.sync');
+    Route::post('/class-sections/resync', [ClassSectionController::class, 'resync'])->name('class-sections.resync');
+    Route::get('/classsubject', [ClassSubjectController::class, 'index'])->name('class-subjects.index');
+
+    Route::post('/class-subjects/store', [ClassSubjectController::class, 'store'])
+        ->name('class-subjects.store');
+});
+
+
+
+// Also add this import at the top of web.php with the other use statements:
+// use App\Http\Controllers\ClassSectionController;

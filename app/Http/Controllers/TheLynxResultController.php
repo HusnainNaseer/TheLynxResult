@@ -5,20 +5,28 @@ namespace App\Http\Controllers;
 use App\Models\Session;
 use App\Models\StudentMarks;
 use App\Models\StudentResult;
-use App\Models\user;
+use App\Models\User;
+// use App\Models\http\Resources\BranchResource;
+// use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use App\Models\SubjectWiseMarks;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-
-    class TheLynxResultController extends Controller
+class TheLynxResultController extends Controller
 {
     public function results(Request $request)
     {
         $user = auth()->user();
 
-        if (!$user->branch_name || !$user->branch_address || !$user->branch_email || !$user->branch_phone) {
+        if (
+            !$user->branch_name ||
+            !$user->branch_address ||
+            !$user->branch_email ||
+            !$user->branch_phone
+        ) {
             return redirect()->route('profile.edit')
                 ->with('error', 'Please Fill Branch Information to access results.');
         }
@@ -26,7 +34,6 @@ use Illuminate\Support\Facades\Log;
         $isAdmin = $user->hasRole('Admin');
         $filterUserId = $request->get('user_id');
 
-        // 🔑 MAIN QUERY
         $subjects = StudentResult::with('session')
             ->when(!$isAdmin, function ($q) use ($user) {
                 $q->where('created_by', $user->id);
@@ -35,36 +42,63 @@ use Illuminate\Support\Facades\Log;
                 $q->where('created_by', $filterUserId);
             })
             ->orderByDesc('id')
-            ->paginate('10');
+            ->paginate(10);
 
-        // 🔑 USERS LIST FOR ADMIN FILTER
         $users = $isAdmin
             ? User::whereHas('roles', function ($q) {
                 $q->where('name', 'Teacher');
             })
-            ->where('branch_name','!=','')->get()
+            ->where('branch_name', '!=', '')
+            ->get()
             : collect();
+        try {
+            $branches = Cache::remember('branches', 60, function () {
+                $response = Http::get(env('API_URL') . 'get-branches');
 
-        return view('results.student_result', compact('subjects', 'users', 'isAdmin'));
+                if ($response->successful()) {
+                    return $response->json()['data'] ?? [];
+                }
+
+                Log::error('Failed to fetch branches: ' . $response->body());
+                return [];
+            });
+        } catch (\Exception $e) {
+            Log::error('Error fetching branches: ' . $e->getMessage());
+            $branches = [];
+        }
+
+        return view('results.student_result', compact(
+            'subjects',
+            'users',
+            'isAdmin',
+            'branches'
+        ));
+        // return view('results.student_result', compact(
+        //     'subjects',
+        //     'users',
+        //     'isAdmin',
+        //     'branches'
+        // ));
     }
 
     public function result_create()
     {
         $user = auth()->user();
         $isAdmin = $user->hasRole('Admin');
-         if ($isAdmin) {
-            // Redirect to profile edit page with a message
-            return redirect()->route('profile.edit')->with('error', 'Only Teachers can create results');
+
+
+        if (
+            !$user->branch_name ||
+            !$user->branch_address ||
+            !$user->branch_email ||
+            !$user->branch_phone
+        ) {
+            return redirect()->route('profile.edit')
+                ->with('error', 'Please Fill Branch Information to access results.');
         }
 
-        // Check if any required profile field is missing
-        if (!$user->branch_name || !$user->branch_address || !$user->branch_email ||!$user->branch_phone) {
-            // Redirect to profile edit page with a message
-            return redirect()->route('profile.edit')->with('error', 'Please Fill Branch Information to access results.');
-        }
-        
         $subjects = SubjectWiseMarks::select('subject_name', 'id')
-            ->where('created_by', auth()->user()->id)
+            ->where('created_by', $user->id)
             ->distinct()
             ->get();
 
@@ -80,14 +114,21 @@ use Illuminate\Support\Facades\Log;
         DB::beginTransaction();
 
         try {
-            // Validate student details
-            if (! $request->student_name || ! $request->roll_no || ! $request->class || ! $request->section) {
+            if (
+                !$request->student_name ||
+                !$request->roll_no ||
+                !$request->class ||
+                !$request->section
+            ) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Please fill all student details (Name, Roll No, Class, Section).',
                 ], 422);
             }
-            $resultexist = StudentResult::where('rollno', $request->roll_no)->where('session_id', $request->session_id)->first();
+
+            $resultexist = StudentResult::where('rollno', $request->roll_no)
+                ->where('session_id', $request->session_id)
+                ->first();
 
             if ($resultexist) {
                 return response()->json([
@@ -96,7 +137,7 @@ use Illuminate\Support\Facades\Log;
                 ], 422);
             }
 
-            if (empty($request->subjects) || ! is_array($request->subjects)) {
+            if (empty($request->subjects) || !is_array($request->subjects)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Please add at least one subject with marks.',
@@ -114,7 +155,9 @@ use Illuminate\Support\Facades\Log;
             $subjectsToSave = [];
 
             foreach ($request->subjects as $sub) {
-                if (empty($sub['subject_id'])) continue;
+                if (empty($sub['subject_id'])) {
+                    continue;
+                }
 
                 $subject = SubjectWiseMarks::findOrFail($sub['subject_id']);
 
@@ -132,11 +175,13 @@ use Illuminate\Support\Facades\Log;
 
                 $subjectObtained = $termOneMark + $termTwoMark;
                 $subjectTotal = $termOneTotal + $termTwoTotal;
+
                 $subjectPercentage = $this->calculatePercentage($subjectObtained, $subjectTotal);
                 $subjectGrade = $this->calculateGrade($subjectPercentage);
 
                 $grand_term_one += $termOneMark;
                 $grand_term_two += $termTwoMark;
+
                 $totalSubjectPercentage += $subjectPercentage;
                 $subjectCount++;
 
@@ -155,7 +200,6 @@ use Illuminate\Support\Facades\Log;
                 ];
             }
 
-            // Save student result
             $student = StudentResult::create([
                 'name' => $request->student_name,
                 'class' => $request->class,
@@ -172,7 +216,6 @@ use Illuminate\Support\Facades\Log;
                 'created_by' => auth()->id(),
             ]);
 
-            // Save each subject's marks and remarks
             foreach ($subjectsToSave as $markData) {
                 StudentMarks::create([
                     'result_id' => $student->id,
@@ -189,12 +232,13 @@ use Illuminate\Support\Facades\Log;
                 ]);
             }
 
-            $overallPercentage = $subjectCount > 0 ? ($totalSubjectPercentage / $subjectCount) : 0;
-            $overallGrade = $this->calculateGrade($overallPercentage);
+            $overallPercentage = $subjectCount > 0
+                ? ($totalSubjectPercentage / $subjectCount)
+                : 0;
 
             $student->update([
                 'overall_percentage' => round($overallPercentage, 2),
-                'overall_grade' => $overallGrade,
+                'overall_grade' => $this->calculateGrade($overallPercentage),
             ]);
 
             DB::commit();
@@ -202,18 +246,11 @@ use Illuminate\Support\Facades\Log;
             return response()->json([
                 'success' => true,
                 'message' => 'Student result generated successfully',
-                'data' => [
-                    'student_id' => $student->id,
-                    'overall_percentage' => round($overallPercentage, 2),
-                    'overall_grade' => $overallGrade,
-                ],
             ]);
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Error storing student result', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+
+            Log::error($e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -225,21 +262,23 @@ use Illuminate\Support\Facades\Log;
     public function update(Request $request, $id)
     {
         DB::beginTransaction();
+
         try {
             $student = StudentResult::findOrFail($id);
+            $user = auth()->user();
 
-            if ($student->created_by !== auth()->id()) {
+            if (!$user->hasRole('Admin') && $student->created_by != $user->id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized access',
                 ], 403);
             }
 
+            StudentMarks::where('result_id', $student->id)->delete();
+
             $t1Working = floatval($request->input('working_days.term_one', 0));
             $t2Working = floatval($request->input('working_days.term_two', 0));
             $totalAttendance = $t1Working + $t2Working;
-
-            StudentMarks::where('result_id', $student->id)->delete();
 
             $grand_term_one = 0;
             $grand_term_two = 0;
@@ -247,7 +286,9 @@ use Illuminate\Support\Facades\Log;
             $subjectCount = 0;
 
             foreach ($request->subjects as $sub) {
-                if (empty($sub['subject_id'])) continue;
+                if (empty($sub['subject_id'])) {
+                    continue;
+                }
 
                 $subject = SubjectWiseMarks::findOrFail($sub['subject_id']);
 
@@ -260,16 +301,15 @@ use Illuminate\Support\Facades\Log;
                 $termOnePercent = $this->calculatePercentage($termOneMark, $termOneTotal);
                 $termTwoPercent = $this->calculatePercentage($termTwoMark, $termTwoTotal);
 
-                $termOneGrade = $this->calculateGrade($termOnePercent);
-                $termTwoGrade = $this->calculateGrade($termTwoPercent);
-
                 $subjectObtained = $termOneMark + $termTwoMark;
                 $subjectTotal = $termOneTotal + $termTwoTotal;
+
                 $subjectPercentage = $this->calculatePercentage($subjectObtained, $subjectTotal);
                 $subjectGrade = $this->calculateGrade($subjectPercentage);
 
                 $grand_term_one += $termOneMark;
                 $grand_term_two += $termTwoMark;
+
                 $totalSubjectPercentage += $subjectPercentage;
                 $subjectCount++;
 
@@ -279,17 +319,18 @@ use Illuminate\Support\Facades\Log;
                     'term_one_mark' => $termOneMark,
                     'term_one_total' => $termOneTotal,
                     'term_one_percent' => round($termOnePercent, 2),
-                    'term_one_grade' => $termOneGrade,
+                    'term_one_grade' => $this->calculateGrade($termOnePercent),
                     'term_two_mark' => $termTwoMark,
                     'term_two_total' => $termTwoTotal,
                     'term_two_percent' => round($termTwoPercent, 2),
-                    'term_two_grade' => $termTwoGrade,
+                    'term_two_grade' => $this->calculateGrade($termTwoPercent),
                     'remarks' => $sub['remarks'] ?? $this->generateRemarks($subjectGrade),
                 ]);
             }
-            // dd($request->all());
-            $overallPercentage = $subjectCount > 0 ? ($totalSubjectPercentage / $subjectCount) : 0;
-            $overallGrade = $this->calculateGrade($overallPercentage);
+
+            $overallPercentage = $subjectCount > 0
+                ? ($totalSubjectPercentage / $subjectCount)
+                : 0;
 
             $student->update([
                 'name' => $request->student_name,
@@ -304,7 +345,7 @@ use Illuminate\Support\Facades\Log;
                 'grand_term_two' => $grand_term_two,
                 'grand_total' => $grand_term_one + $grand_term_two,
                 'overall_percentage' => round($overallPercentage, 2),
-                'overall_grade' => $overallGrade,
+                'overall_grade' => $this->calculateGrade($overallPercentage),
                 'remarks' => $request->remarks ?? null,
                 'promoted_class' => $request->promoted_class ?? null,
             ]);
@@ -328,8 +369,9 @@ use Illuminate\Support\Facades\Log;
     public function destroy($id)
     {
         $student = StudentResult::findOrFail($id);
+        $user = auth()->user();
 
-        if ($student->created_by === auth()->id()) {
+        if ($user->hasRole('Admin') || $student->created_by == $user->id) {
             StudentMarks::where('result_id', $student->id)->delete();
             $student->delete();
         }
@@ -340,56 +382,28 @@ use Illuminate\Support\Facades\Log;
     public function show($id)
     {
         $student = StudentResult::with('marks.subject', 'session')->findOrFail($id);
-        if (!$student) {
-            return redirect()->back()->with('message', 'Result Not Found');
-        }
-        if ($student->created_by !== auth()->id()) {
+        $user = auth()->user();
+
+        if (!$user->hasRole('Admin') && $student->created_by != $user->id) {
             abort(403, 'Unauthorized access');
         }
 
-        return view('results.final_result_card', compact('student'));
-    }
+        $creator = User::findOrFail($student->created_by);
 
-    private function calculatePercentage($obtained, $total)
-    {
-        if ($total == 0) return 0;
-        return ($obtained / $total) * 100;
-    }
-
-    private function calculateGrade($percent)
-    {
-        if ($percent >= 90) return 'A+';
-        if ($percent >= 80) return 'A';
-        if ($percent >= 70) return 'B';
-        if ($percent >= 60) return 'C';
-        if ($percent >= 50) return 'D';
-        return 'F';
-    }
-
-    private function generateRemarks($grade)
-    {
-        $remarks = [
-            'A+' => 'Outstanding',
-            'A' => 'Excellent',
-            'B' => 'Very Good',
-            'C' => 'Good',
-            'D' => 'Satisfactory',
-            'F' => 'Needs Improvement',
-        ];
-
-        return $remarks[$grade] ?? 'N/A';
+        return view('results.final_result_card', compact('student', 'creator'));
     }
 
     public function edit($id)
     {
         $student = StudentResult::with('marks.subject', 'session')->findOrFail($id);
+        $user = auth()->user();
 
-        if ($student->created_by !== auth()->id()) {
+        if (!$user->hasRole('Admin') && $student->created_by != $user->id) {
             abort(403, 'Unauthorized access');
         }
 
         $subjects = SubjectWiseMarks::select('subject_name', 'id')
-            ->where('created_by', auth()->id())
+            ->where('created_by', $student->created_by)
             ->distinct()
             ->get();
 
@@ -426,5 +440,33 @@ use Illuminate\Support\Facades\Log;
             ->get();
 
         return response()->json($results);
+    }
+
+    private function calculatePercentage($obtained, $total)
+    {
+        return $total == 0 ? 0 : ($obtained / $total) * 100;
+    }
+
+    private function calculateGrade($percent)
+    {
+        if ($percent >= 90) return 'A+';
+        if ($percent >= 80) return 'A';
+        if ($percent >= 70) return 'B';
+        if ($percent >= 60) return 'C';
+        if ($percent >= 50) return 'D';
+
+        return 'F';
+    }
+
+    private function generateRemarks($grade)
+    {
+        return [
+            'A+' => 'Outstanding',
+            'A'  => 'Excellent',
+            'B'  => 'Very Good',
+            'C'  => 'Good',
+            'D'  => 'Satisfactory',
+            'F'  => 'Needs Improvement',
+        ][$grade] ?? 'N/A';
     }
 }

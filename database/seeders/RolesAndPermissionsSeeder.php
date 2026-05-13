@@ -39,11 +39,13 @@ class RolesAndPermissionsSeeder extends Seeder
         // Roles
         $admin = Role::firstOrCreate(['name' => 'Admin']);
         $teacher = Role::firstOrCreate(['name' => 'Teacher']);
+        $coordinator = Role::firstOrCreate(['name' => 'Coordinator']);
         $student = Role::firstOrCreate(['name' => 'Student']);
 
-        // Assign permissions
+        // Assign permissions to Admin - All permissions
         $admin->givePermissionTo(Permission::all());
-        $teacher->givePermissionTo([
+
+        $coordinatorPermissions = [
             'view dashboard',
             'create result',
             'edit result',
@@ -57,7 +59,19 @@ class RolesAndPermissionsSeeder extends Seeder
             'edit subjects',
             'view subjects',
             'delete subjects',
+        ];
+        $coordinator->givePermissionTo($coordinatorPermissions);
+
+        // Assign permissions to Teacher
+        $teacher->givePermissionTo([
+            'view dashboard',
+            'create result',
+            'edit result',
+            'delete result',
+            'view result',
         ]);
+
+        // Assign permissions to Student
         $student->givePermissionTo([
             'view result'
         ]);

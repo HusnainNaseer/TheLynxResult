@@ -23,34 +23,38 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-public function store(LoginRequest $request): RedirectResponse
-{
-    $userType = $request->input('user_type', 'admin');
-    
-    $request->authenticate();
-    
-    $user = Auth::user();
-    
-    // Get user's actual role (case-insensitive)
-    $userRoles = $user->getRoleNames()->map(function($role) {
-        return strtolower($role);
-    });
-    
-    // Check if user has the selected role (case-insensitive)
-    if (!$userRoles->contains(strtolower($userType))) {
-        $userRole = $user->getRoleNames()->first() ?? 'unknown';
-        
-        Auth::logout();
-        
-        return back()->withErrors([
-            'email' => 'Please provide ' . ucfirst($userType) . ' credentials. You are trying to login as ' . ucfirst($userRole) . '.',
-        ])->onlyInput('email');
+    public function store(LoginRequest $request): RedirectResponse
+    {
+        $request->authenticate();
+
+        $user = Auth::user();
+
+        $userRoles = $user->getRoleNames()->map(function ($role) {
+            return strtolower($role);
+        });
+
+        // Block users with only 'user' role
+        if ($userRoles->contains('user') && $userRoles->count() === 1) {
+            Auth::logout();
+
+            return back()->withErrors([
+                'email' => 'You do not have access to login.',
+            ])->onlyInput('email');
+        }
+
+        // Check if user has admin, teacher, or coordinator role
+        if (!$userRoles->contains('admin') && !$userRoles->contains('teacher') && !$userRoles->contains('coordinator')) {
+            Auth::logout();
+
+            return back()->withErrors([
+                'email' => 'You do not have permission to access this system.',
+            ])->onlyInput('email');
+        }
+
+        $request->session()->regenerate();
+
+        return redirect()->intended(route('dashboard', absolute: false));
     }
-    
-    $request->session()->regenerate();
-    
-    return redirect()->intended(route('dashboard', absolute: false));
-}
 
     /**
      * Destroy an authenticated session.
