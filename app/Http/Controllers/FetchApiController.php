@@ -7,8 +7,12 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use App\Models\Branch;
 use App\Models\Classes;
 use App\Models\Section;
+use App\Models\Session;
+use App\Models\Student;
+use App\Services\StudentSyncService;
 
 class FetchApiController extends Controller
 {
@@ -17,19 +21,27 @@ class FetchApiController extends Controller
     | STUDENTS
     |--------------------------------------------------------------------------
     */
-    public function getstudents()
+    public function getstudents(StudentSyncService $studentSyncService)
     {
         try {
-            $students = Cache::remember('students', 60, function () {
-                $response = Http::timeout(10)->get(env('API_URL') . 'get-students');
-                if ($response->successful()) {
-                    return $response->json();
-                }
-                Log::error('Failed to fetch students: ' . $response->body());
-                return [];
-            });
+            $sync = $studentSyncService->syncForActiveSession();
+            $activeSession = Session::active()->first();
 
-            return response()->json($students);
+            if (!$activeSession) {
+                return response()->json(['success' => false, 'message' => $sync['message']], 422);
+            }
+
+            $students = Student::where('session_id', $activeSession->id)
+                ->orderBy('stdname')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => $sync['message'],
+                'synced' => $sync['synced'],
+                'skipped' => $sync['skipped'],
+                'data' => $students,
+            ]);
         } catch (\Exception $e) {
             Log::error('Error fetching students: ' . $e->getMessage());
             return response()->json(['error' => 'Failed to fetch students'], Response::HTTP_INTERNAL_SERVER_ERROR);
@@ -70,6 +82,23 @@ class FetchApiController extends Controller
                 return true;
             })->values()->all();
 
+            foreach ($activeBranches as $branch) {
+                if (empty($branch['id'])) {
+                    continue;
+                }
+
+                Branch::updateOrCreate(
+                    ['erp_branch_id' => $branch['id']],
+                    [
+                        'name' => $branch['name'] ?? $branch['branch_name'] ?? 'Branch #' . $branch['id'],
+                        'email' => $branch['email'] ?? $branch['branch_email'] ?? null,
+                        'phone' => $branch['phone'] ?? $branch['branch_phone'] ?? null,
+                        'address' => $branch['address'] ?? $branch['branch_address'] ?? null,
+                        'is_active' => true,
+                    ]
+                );
+            }
+
             return response()->json(['success' => true, 'data' => $activeBranches]);
         } catch (\Exception $e) {
             Cache::forget('branches_raw'); // don't keep bad cache on exception
@@ -88,6 +117,12 @@ class FetchApiController extends Controller
     $branchId = $request->query('branch_id');
 
     try {
+        $activeSession = Session::active()->first();
+
+        if (!$activeSession) {
+            return response()->json(['error' => 'Please activate a session before syncing classes'], 422);
+        }
+
         $response = Http::timeout(10)->get(env('API_URL') . 'get-classes');
 
         if (!$response->successful()) {
@@ -98,8 +133,12 @@ class FetchApiController extends Controller
 
         foreach ($data as $class) {
             Classes::updateOrCreate(
-                ['erp_class_id' => $class['id']],
                 [
+                    'erp_class_id' => $class['id'],
+                    'session_id' => $activeSession->id,
+                ],
+                [
+                    'erp_session_id' => $activeSession->erp_session_id ?: (string) $activeSession->id,
                     'name'          => $class['name']      ?? null,
                     'erp_branch_id' => $class['owned_by']  ?? null,  // ← was missing
                     'owned_by'      => $class['owned_by']  ?? null,
@@ -175,6 +214,12 @@ class FetchApiController extends Controller
         $classId = $request->query('class_id');
 
         try {
+            $activeSession = Session::active()->first();
+
+            if (!$activeSession) {
+                return response()->json(['error' => 'Please activate a session before syncing sections'], 422);
+            }
+
             $response = Http::timeout(10)->get(env('API_URL') . 'get-sections');
 
             if (!$response->successful()) {
@@ -185,8 +230,12 @@ class FetchApiController extends Controller
 
             foreach ($data as $section) {
                 Section::updateOrCreate(
-                    ['erp_section_id' => $section['id']],
                     [
+                        'erp_section_id' => $section['id'],
+                        'session_id' => $activeSession->id,
+                    ],
+                    [
+                        'erp_session_id' => $activeSession->erp_session_id ?: (string) $activeSession->id,
                         'class_id' => $section['class_id'] ?? null,
                         'name'     => $section['name'] ?? null,
                         'owned_by' => $section['owned_by'] ?? null,

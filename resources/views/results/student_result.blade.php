@@ -1,170 +1,292 @@
 @extends('layouts.main')
+
 @section('content')
     <style>
         .pagination nav {
             width: 100% !important;
         }
     </style>
+
     <div class="page-content">
         <div class="container-fluid">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h4 class="mb-0">Result List</h4>
+                <form method="POST" action="{{ route('results.sync-students', request()->query()) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-primary btn-sm">Sync Students</button>
+                </form>
+            </div>
 
-            <h4 class="mb-3">All Results</h4>
-
-            @if ($isAdmin)
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <select id="userFilter" class="form-control">
-                            <option value="">All Branches Result</option>
-
-                            @foreach ($branches as $branch)
-                                <option value="{{ $branch->id }}">
-                                    {{ $branch->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
+            @if (session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
             @endif
+
+            @if (session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <form id="resultFilterForm" method="GET" action="{{ route('students.result') }}">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label" for="branchFilter">Branch</label>
+                                <select id="branchFilter" name="branch_id" class="form-select">
+                                    <option value="">All Branches</option>
+                                    @foreach ($branches as $branch)
+                                        <option value="{{ data_get($branch, 'id') }}"
+                                            {{ (string) $selectedBranchId === (string) data_get($branch, 'id') ? 'selected' : '' }}>
+                                            {{ data_get($branch, 'name') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="classFilter">Class</label>
+                                <select id="classFilter" name="class_id" class="form-select" {{ $classes->isEmpty() ? 'disabled' : '' }}>
+                                    <option value="">All Classes</option>
+                                    @foreach ($classes as $class)
+                                        <option value="{{ data_get($class, 'id') }}"
+                                            {{ (string) $selectedClassId === (string) data_get($class, 'id') ? 'selected' : '' }}>
+                                            {{ data_get($class, 'name') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="sectionFilter">Section</label>
+                                <select id="sectionFilter" name="section_id" class="form-select" {{ $sections->isEmpty() ? 'disabled' : '' }}>
+                                    <option value="">All Sections</option>
+                                    @foreach ($sections as $section)
+                                        <option value="{{ data_get($section, 'id') }}"
+                                            {{ (string) $selectedSectionId === (string) data_get($section, 'id') ? 'selected' : '' }}>
+                                            {{ data_get($section, 'name') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label" for="search">Search</label>
+                                <div class="input-group">
+                                    <input type="search" id="search" name="search" class="form-control"
+                                        placeholder="Student, roll no, father, phone" value="{{ $search }}">
+                                    <button class="btn btn-primary" type="submit">Search</button>
+                                </div>
+                            </div>
+
+                            <div class="col-md-12">
+                                <a href="{{ route('students.result') }}" class="btn btn-light btn-sm">Reset Filters</a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             <div class="card">
                 <div class="card-body">
-
-                    <div class="d-flex justify-content-between mb-3">
-                        <input type="search" id="search" class="form-control w-25" placeholder="Search student">
-                        {{-- @role('Teacher') --}}
-                            <a href="{{ route('results.create') }}" class="btn btn-primary">Create</a>
-                        {{-- @endrole --}}
-                    </div>
+                    @if ($canUseForwardControls)
+                        <form id="bulkForwardForm" method="POST" action="{{ route('results.bulk-forward') }}"
+                            class="d-flex flex-wrap gap-2 align-items-center mb-3 d-none"
+                            onsubmit="return confirm('Forward selected results?')">
+                            @csrf
+                            <input type="hidden" name="action" id="bulkForwardAction" value="">
+                            <button type="submit" class="btn btn-primary btn-sm bulk-forward-btn d-none"
+                                data-forward-action="forward_class_teacher">
+                                FW Selected to Class Teacher
+                            </button>
+                            <button type="submit" class="btn btn-primary btn-sm bulk-forward-btn d-none"
+                                data-forward-action="forward_coordinator">
+                                FW Selected to Coordinator
+                            </button>
+                        </form>
+                    @endif
 
                     <div class="table-responsive">
-                        <table class="table table-bordered" id="resultTable">
+                        <table class="table table-bordered align-middle" id="resultTable">
                             <thead>
                                 <tr>
+                                    <th style="width: 40px;">
+                                        @if ($canUseForwardControls)
+                                            <input type="checkbox" id="bulkCheckAll">
+                                        @endif
+                                    </th>
                                     <th>#</th>
-                                    <th>Name</th>
+                                    <th>Student</th>
+                                    <th>Roll No</th>
+                                    <th>Branch</th>
                                     <th>Class</th>
                                     <th>Section</th>
-                                    <th>Roll No</th>
+                                    <th>Status</th>
                                     <th>Grade</th>
                                     <th>Percentage</th>
-                                    <th>Session</th>
-                                    <th>Attendance</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @php
-                                    $sr = $subjects->firstItem();
-                                @endphp
-                                @foreach ($subjects as $result)
-                                    <tr>
-                                        <td>{{ $sr++ }}</td>
-                                        <td>{{ $result->name }}</td>
-                                        <td>{{ $result->class }}</td>
-                                        <td>{{ $result->section }}</td>
-                                        <td>{{ $result->rollno }}</td>
-                                        <td>{{ $result->overall_grade }}</td>
-                                        <td>{{ $result->overall_percentage }}%</td>
-                                        <td>{{ $result->session->title ?? 'N/A' }}</td>
-                                        <td>{{ $result->attendance }}</td>
-                                        <td>
-                                            <a href="{{ route('results.show', $result->id) }}" class="btn btn-info btn-sm">
-                                                <i class="ri-eye-line"></i>
-                                            </a>
-                                            {{-- @role('Teacher') --}}
-                                                <a href="{{ route('results.edit', $result->id) }}"
-                                                    class="btn btn-warning btn-sm">
-                                                    <i class="ri-edit-line"></i>
-                                                </a>
-                                                <form action="{{ route('results.destroy', $result->id) }}" method="POST"
-                                                    class="d-inline"
-                                                    onsubmit="return confirm('Are you sure you want to delete this result?')">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button class="btn btn-danger btn-sm">
-                                                        <i class="ri-delete-bin-line"></i>
-                                                    </button>
-                                                {{-- @endrole --}}
-                                            </form>
-                                        </td>
-                                    </tr>
-                                @endforeach
+                            <tbody id="studentRows">
+                                @include('results.partials.student_rows', ['students' => $students, 'canManageResults' => $canManageResults])
                             </tbody>
                         </table>
                     </div>
 
-                    {{-- ✅ Pagination Links --}}
-                    <div class="d-flex justify-content-between mt-3 pagination">
-                        {{ $subjects->links() }}
+                    <div class="d-flex justify-content-between mt-3 pagination" id="paginationLinks">
+                        {{ $students->links() }}
                     </div>
-
-
                 </div>
             </div>
-
         </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('resultFilterForm');
+            const branch = document.getElementById('branchFilter');
+            const classSelect = document.getElementById('classFilter');
+            const section = document.getElementById('sectionFilter');
+            const search = document.getElementById('search');
+            const rows = document.getElementById('studentRows');
+            const pagination = document.getElementById('paginationLinks');
+            const bulkForwardForm = document.getElementById('bulkForwardForm');
+            const bulkCheckAll = document.getElementById('bulkCheckAll');
+            let timer = null;
 
-            const searchInput = document.getElementById('search');
-            const userFilter = document.getElementById('userFilter');
-            const tbody = document.querySelector('#resultTable tbody');
+            function refreshBulkControls() {
+                if (!bulkForwardForm) return;
 
-            function fetchResults() {
-                const search = searchInput.value;
-                const userId = userFilter ? userFilter.value : '';
+                const checks = Array.from(document.querySelectorAll('.bulk-result-check'));
+                const availableActions = new Set(checks.map(check => check.dataset.forwardAction));
 
-                fetch(`{{ route('results.search') }}?search=${search}&user_id=${userId}`)
-                    .then(res => res.json())
+                bulkForwardForm.classList.toggle('d-none', checks.length === 0);
+                document.querySelectorAll('.bulk-forward-btn').forEach(button => {
+                    button.classList.toggle('d-none', !availableActions.has(button.dataset.forwardAction));
+                });
+
+                if (bulkCheckAll) {
+                    bulkCheckAll.checked = checks.length > 0 && checks.every(check => check.checked);
+                    bulkCheckAll.disabled = checks.length === 0;
+                }
+            }
+
+            function updateOptions(select, rows, placeholder, selectedValue = '') {
+                let html = `<option value="">${placeholder}</option>`;
+                rows.forEach(row => {
+                    const selected = String(selectedValue) === String(row.id) ? 'selected' : '';
+                    html += `<option value="${row.id}" ${selected}>${row.name}</option>`;
+                });
+                select.innerHTML = html;
+                select.disabled = rows.length === 0;
+            }
+
+            function fetchResults(url = null) {
+                const formData = new FormData(form);
+                const params = new URLSearchParams(formData);
+                const target = url || `${form.action}?${params.toString()}`;
+
+                fetch(target, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(response => response.json())
                     .then(data => {
-                        tbody.innerHTML = '';
-                        if (data.length === 0) {
-                            tbody.innerHTML =
-                                `<tr><td colspan="10" class="text-center">No results found</td></tr>`;
-                            return;
+                        rows.innerHTML = data.rows;
+                        pagination.innerHTML = data.pagination;
+                        refreshBulkControls();
+
+                        if (!url) {
+                            updateOptions(classSelect, data.classes, 'All Classes', classSelect.value);
+                            updateOptions(section, data.sections, 'All Sections', section.value);
+                            window.history.replaceState({}, '', target);
                         }
-
-                        data.forEach((r, i) => {
-                            tbody.innerHTML += `
-                    <tr>
-                        <td>${i+1}</td>
-                        <td>${r.name}</td>
-                        <td>${r.class}</td>
-                        <td>${r.section}</td>
-                        <td>${r.rollno}</td>
-                        <td>${r.overall_grade ?? 'N/A'}</td>
-                        <td>${r.overall_percentage ?? 0}%</td>
-                        <td>${r.session ? r.session.title : 'N/A'}</td>
-                        <td>${r.attendance ?? 0}</td>
-                        <td>
-    <a href="{{ url('results') }}/${r.id}" class="btn btn-info btn-sm">
-        <i class="ri-eye-line"></i>
-    </a>
-    
-    <a href="{{ url('results') }}/${r.id}/edit" class="btn btn-warning btn-sm">
-        <i class="ri-edit-line"></i>
-    </a>
-
-    <form action="{{ url('results') }}/${r.id}" method="POST" class="d-inline"
-          onsubmit="return confirm('Are you sure you want to delete this result?')">
-
-        <input type="hidden" name="_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="_method" value="DELETE">
-
-        <button class="btn btn-danger btn-sm">
-            <i class="ri-delete-bin-line"></i>
-        </button>
-    </form>
-</td>
-                    </tr>`;
-                        });
                     });
             }
 
-            searchInput.addEventListener('keyup', fetchResults);
-            if (userFilter) userFilter.addEventListener('change', fetchResults);
+            branch.addEventListener('change', function() {
+                classSelect.value = '';
+                section.value = '';
+                fetchResults();
+            });
+
+            classSelect.addEventListener('change', function() {
+                section.value = '';
+                fetchResults();
+            });
+
+            section.addEventListener('change', function() {
+                fetchResults();
+            });
+
+            form.addEventListener('submit', function(event) {
+                event.preventDefault();
+                fetchResults();
+            });
+
+            search.addEventListener('input', function() {
+                clearTimeout(timer);
+                timer = setTimeout(fetchResults, 300);
+            });
+
+            document.addEventListener('click', function(event) {
+                const pageLink = event.target.closest('#paginationLinks a');
+                if (!pageLink) return;
+
+                event.preventDefault();
+                fetchResults(pageLink.href);
+            });
+
+            document.addEventListener('submit', function(event) {
+                const form = event.target.closest('.ajax-delete-result');
+                if (!form) return;
+
+                event.preventDefault();
+                fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: new FormData(form)
+                }).then(() => fetchResults());
+            });
+
+            document.addEventListener('change', function(event) {
+                if (event.target.id === 'bulkCheckAll') {
+                    document.querySelectorAll('.bulk-result-check').forEach(check => {
+                        check.checked = event.target.checked;
+                    });
+                    refreshBulkControls();
+                }
+
+                if (event.target.classList.contains('bulk-result-check')) {
+                    refreshBulkControls();
+                }
+            });
+
+            document.querySelectorAll('.bulk-forward-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.getElementById('bulkForwardAction').value = this.dataset.forwardAction;
+                });
+            });
+
+            if (bulkForwardForm) {
+                bulkForwardForm.addEventListener('submit', function(event) {
+                    const action = document.getElementById('bulkForwardAction').value;
+                    document.querySelectorAll('.bulk-result-check').forEach(check => {
+                        check.disabled = check.dataset.forwardAction !== action;
+                    });
+
+                    if (!document.querySelector('.bulk-result-check:checked:not(:disabled)')) {
+                        event.preventDefault();
+                        document.querySelectorAll('.bulk-result-check').forEach(check => check.disabled = false);
+                        alert('Please select at least one eligible result.');
+                    }
+                });
+            }
+
+            if (bulkForwardForm) {
+                refreshBulkControls();
+            }
         });
     </script>
 @endsection

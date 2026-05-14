@@ -73,18 +73,22 @@ Route::middleware(['permission:view dashboard'])->get('/dashboard', function (Re
     $user = Auth::user();
     $isAdmin = $user->hasRole('Admin');
 
+    $currentSession = Session::active()->first() ?? Session::orderBy('id', 'desc')->first();
+    $sessionId = $request->get('session_id') ?? ($currentSession ? $currentSession->id : null);
+
+    $studentResultQuery = StudentResult::query()
+        ->when($sessionId, fn($query) => $query->where('session_id', $sessionId));
+
     $totalStudents = $isAdmin
-        ? StudentResult::count()
-        : StudentResult::where('created_by', $user->id)->count();
+        ? (clone $studentResultQuery)->count()
+        : (clone $studentResultQuery)->where('created_by', $user->id)->count();
 
     $totalsubjects = $isAdmin
         ? SubjectWiseMarks::count()
         : SubjectWiseMarks::where('created_by', $user->id)->count();
 
-    $currentSession = Session::orderBy('id', 'desc')->first();
-    $sessionId = $request->get('session_id') ?? ($currentSession ? $currentSession->id : null);
-
     $latestResultsQuery = StudentResult::orderByDesc('overall_percentage')
+        ->when($sessionId, fn($query) => $query->where('session_id', $sessionId))
         ->whereRaw("TRIM(UPPER(overall_grade)) NOT IN ('D','E','U','F')")
         ->whereNotNull('overall_percentage');
 
@@ -139,7 +143,7 @@ Route::post('/users/{id}/revoke', [TeachersController::class, 'revokeTeacherRole
 | RESULTS & RELATED (ONLY ADDITION IS ADMIN FILTER SUPPORT)
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth', 'role:Admin|Teacher')->group(function () {
+Route::middleware('auth', 'role:Admin|Teacher|Coordinator')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile/{id}', [ProfileController::class, 'update'])->name('profile.update');
@@ -155,6 +159,9 @@ Route::middleware('auth', 'role:Admin|Teacher')->group(function () {
     Route::get('/results', [TheLynxResultController::class, 'results'])
         ->name('students.result');
 
+    Route::post('/results/sync-students', [TheLynxResultController::class, 'syncStudents'])
+        ->name('results.sync-students');
+
     /*
      |--------------------------------------------------------------------------
      | SEARCH (ADMIN CAN FILTER BY USER)
@@ -166,8 +173,26 @@ Route::middleware('auth', 'role:Admin|Teacher')->group(function () {
     Route::get('/results-create', [TheLynxResultController::class, 'result_create'])
         ->name('results.create');
 
+    Route::get('/results-create/classes', [TheLynxResultController::class, 'resultClasses'])
+        ->name('results.create.classes');
+
+    Route::get('/results-create/sections', [TheLynxResultController::class, 'resultSections'])
+        ->name('results.create.sections');
+
+    Route::get('/results-create/students', [TheLynxResultController::class, 'resultStudents'])
+        ->name('results.create.students');
+
+    Route::get('/results-create/subjects', [TheLynxResultController::class, 'resultSubjects'])
+        ->name('results.create.subjects');
+
     Route::post('/result-store', [TheLynxResultController::class, 'store'])
         ->name('student_result.store');
+
+    Route::post('/results/bulk-forward', [TheLynxResultController::class, 'bulkForward'])
+        ->name('results.bulk-forward');
+
+    Route::post('/results/{id}/forward', [TheLynxResultController::class, 'forward'])
+        ->name('results.forward');
 
     Route::get('/results/{id}', [TheLynxResultController::class, 'show'])
         ->name('results.show');
@@ -194,6 +219,9 @@ Route::middleware('auth', 'role:Admin|Teacher')->group(function () {
 
     Route::get('session/search', [SessionController::class, 'session_search'])
         ->name('session.search');
+
+    Route::post('sessions/{session}/activate', [SessionController::class, 'activate'])
+        ->name('sessions.activate');
 
     Route::resource('subject-marks', SubjectWiseMarksController::class);
     Route::resource('sessions', SessionController::class);
@@ -231,7 +259,7 @@ Route::prefix('assign-subjects')->name('assign-subjects.')->group(function () {
     // Delete an assignment
     Route::delete('/{assignment}',  [AssignSubjectController::class, 'destroy'])->name('destroy');
 
-    // ERP API proxies (called via AJAX from the form)
+    // Local DB endpoints called via AJAX from the form
     Route::get('/api/branches',     [AssignSubjectController::class, 'apiBranches'])->name('api.branches');
     Route::get('/api/classes',      [AssignSubjectController::class, 'apiClasses'])->name('api.classes');
     Route::get('/api/sections',     [AssignSubjectController::class, 'apiSections'])->name('api.sections');
@@ -261,6 +289,9 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
 
     Route::post('/class-subjects/store', [ClassSubjectController::class, 'store'])
         ->name('class-subjects.store');
+
+    Route::delete('/class-subjects/{class}', [ClassSubjectController::class, 'destroy'])
+        ->name('class-subjects.destroy');
 });
 
 

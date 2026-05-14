@@ -10,6 +10,8 @@ class Section extends Model
 
     protected $fillable = [
         'erp_section_id',
+        'session_id',
+        'erp_session_id',
         'class_id',
         'name',
         'owned_by',

@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Session;
+use App\Models\Branch;
+use App\Models\Classes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -82,7 +85,26 @@ class TeachersController extends Controller
         $user = User::find($id);
         if ($user) {
             $branches = $this->fetchBranchesFromERP();
-            return view('teachers.teachers-edit', compact('user', 'branches'));
+            $branchesSelect = collect($branches)
+                ->mapWithKeys(function ($branch) {
+                    $id = $branch['id'] ?? $branch['erp_branch_id'] ?? null;
+                    $name = $branch['name'] ?? $branch['branch_name'] ?? $branch['title'] ?? null;
+
+                    return $id ? [$id => ($name ?: 'Branch #' . $id)] : [];
+                });
+
+            if ($branchesSelect->isEmpty()) {
+                $branchesSelect = Branch::orderBy('name')->pluck('name', 'erp_branch_id');
+            }
+
+            $activeSession = Session::active()->first();
+            $classesSelect = Classes::query()
+                ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+                ->when($user->branch_id, fn($query) => $query->where('erp_branch_id', $user->branch_id))
+                ->orderBy('name')
+                ->pluck('name', 'id');
+
+            return view('teachers.teachers-edit', compact('user', 'branches', 'branchesSelect', 'classesSelect'));
         } else {
             return redirect()->back()->with('error', 'User Not found in record!');
         }
@@ -106,6 +128,8 @@ class TeachersController extends Controller
         ]);
 
         try {
+            $activeSession = Session::active()->first();
+
             // Fetch employee from source API
             $response = Http::timeout(10)
                 ->get(env('API_URL') . "get-employees-by-branch/{$validated['branch_id']}");
@@ -133,18 +157,22 @@ class TeachersController extends Controller
                 'name'     => $name,
                 'email'    => $email,
                 'password' => Hash::make($validated['password']),
+                'created_by' => auth()->id(),
                 // 'is_active' => 1,
             ];
+            $updateData = [];
             // dd($employeeData['employee']['profile_img']);
             // Safely add optional columns
             $optionalColumns = [
                 'branch_id'       => $validated['branch_id'],
                 'erp_employee_id' => $validated['employee_id'],
-                'erp_picture' => $employeeData['employee']['profile_img'],
-                'branch_name' => $employeeData['employee']['branchdetail']['name'],
-                'branch_email' => $employeeData['employee']['userbranch']['email'],
-                'branch_address' => $employeeData['employee']['branchdetail']['address'],
-                'branch_phone' => $employeeData['employee']['branchdetail']['phone_no'],
+                'session_id' => $activeSession?->id,
+                'erp_session_id' => $activeSession ? ($activeSession->erp_session_id ?: (string) $activeSession->id) : null,
+                'erp_picture' => $employeeData['employee']['profile_img'] ?? null,
+                'branch_name' => $employeeData['employee']['branchdetail']['name'] ?? null,
+                'branch_email' => $employeeData['employee']['userbranch']['email'] ?? null,
+                'branch_address' => $employeeData['employee']['branchdetail']['address'] ?? null,
+                'branch_phone' => $employeeData['employee']['branchdetail']['phone_no'] ?? null,
             ];
 
             foreach ($optionalColumns as $column => $value) {

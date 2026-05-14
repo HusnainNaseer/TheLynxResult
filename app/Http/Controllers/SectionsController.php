@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+    use App\Models\Branch;
     use App\Models\Section;
     use App\Models\Classes;
+    use App\Models\Session;
     use Illuminate\Http\Request;
     use Illuminate\Support\Facades\Http;
     use Illuminate\Support\Facades\Log;
@@ -12,30 +14,24 @@ namespace App\Http\Controllers;
     {
         public function index()
         {
-            $totalInDb = Section::count();
-            $branches  = collect();
-            $classMap  = Classes::pluck('name', 'erp_class_id')->toArray();
+            $activeSession = Session::active()->first();
+            $sectionQuery = Section::query()
+                ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
+            $classQuery = Classes::query()
+                ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
 
-            try {
-                $response = Http::timeout(10)->get(env('API_URL') . 'get-branches');
+            $totalInDb = (clone $sectionQuery)->count();
+            $classMap  = (clone $classQuery)->pluck('name', 'erp_class_id')->toArray();
 
-                if ($response->successful()) {
-                    $data        = $response->json();
-                    $allBranches = $data['data'] ?? $data;
-
-                    $branches = collect($allBranches)
-                        ->map(fn($b) => [
-                            'id'   => $b['id'],
-                            'name' => $b['name'] ?? $b['branch_name'] ?? 'Branch #' . $b['id'],
-                        ])
-                        ->values();
-                }
-            } catch (\Exception $e) {
-                Log::error('Branch load failed: ' . $e->getMessage());
-            }
+            $branches = Branch::orderBy('name')
+                ->get()
+                ->map(fn($branch) => [
+                    'id' => $branch->erp_branch_id,
+                    'name' => $branch->name,
+                ]);
 
             // Build classes grouped by branch_id for JS
-            $classesByBranch = Classes::select('erp_class_id', 'name', 'erp_branch_id')
+            $classesByBranch = (clone $classQuery)->select('erp_class_id', 'name', 'erp_branch_id')
                 ->whereNotNull('erp_branch_id')
                 ->orderBy('name')
                 ->get()
@@ -54,7 +50,13 @@ namespace App\Http\Controllers;
          */
         public function sync()
         {
-            try {
+                try {
+                $activeSession = Session::active()->first();
+
+                if (!$activeSession) {
+                    return back()->with('error', 'Please activate a session before syncing sections.');
+                }
+
                 $response = Http::timeout(15)->get(env('API_URL') . 'get-sections');
 
                 if (!$response->successful()) {
@@ -80,7 +82,9 @@ namespace App\Http\Controllers;
                     // resolve erp_branch_id from classes table
                     $erpBranchId = null;
                     if (!empty($sec['class_id'])) {
-                        $class = Classes::where('erp_class_id', $sec['class_id'])->first();
+                        $class = Classes::where('erp_class_id', $sec['class_id'])
+                            ->where('session_id', $activeSession->id)
+                            ->first();
                         $erpBranchId = $class?->erp_branch_id;
                     }
 
@@ -90,8 +94,12 @@ namespace App\Http\Controllers;
                     }
 
                     Section::updateOrCreate(
-                        ['erp_section_id' => $sec['id']],
                         [
+                            'erp_section_id' => $sec['id'],
+                            'session_id' => $activeSession->id,
+                        ],
+                        [
+                            'erp_session_id' => $activeSession->erp_session_id ?: (string) $activeSession->id,
                             'name'          => $sec['name']     ?? 'Unknown',
                             'class_id'      => $sec['class_id'] ?? null,  // this is erp_class_id from API
                             'owned_by'      => $sec['owned_by'] ?? null,

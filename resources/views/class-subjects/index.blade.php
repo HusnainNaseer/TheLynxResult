@@ -39,7 +39,7 @@
     }
     .col-label i { font-size: .85rem; color: #405189; }
 
-    select[multiple] {
+    .subject-multiselect {
         border-radius: .5rem;
         border: 1px solid #dee2e6;
         padding: .4rem .5rem;
@@ -49,25 +49,81 @@
         transition: border-color .2s, box-shadow .2s;
         appearance: none;
     }
-    select[multiple]:focus {
+    .subject-multiselect:focus {
         outline: none;
         border-color: #405189;
         box-shadow: 0 0 0 .2rem rgba(64,81,137,.12);
     }
-    select[multiple] option {
+    .subject-multiselect option {
         padding: .35rem .5rem;
         border-radius: .25rem;
         margin-bottom: 1px;
         font-size: .875rem;
     }
-    select[multiple] option:checked {
+    .subject-multiselect option:checked {
         background: #405189;
         color: #fff;
     }
-    select[multiple] option:disabled {
+    .subject-multiselect option:disabled {
         color: #adb5bd;
         font-style: italic;
         background: #f8f9fa;
+    }
+
+    .subject-select-wrap .select2-container {
+        width: 100% !important;
+    }
+    .subject-select-wrap .select2-container--default .select2-selection--multiple {
+        min-height: 38px;
+        border: 1px solid #dee2e6;
+        border-radius: .5rem;
+        padding: .18rem .35rem;
+        display: flex;
+        align-items: center;
+        transition: border-color .2s, box-shadow .2s;
+    }
+    .subject-select-wrap .select2-container--default.select2-container--focus .select2-selection--multiple {
+        border-color: #405189;
+        box-shadow: 0 0 0 .2rem rgba(64,81,137,.12);
+    }
+    .subject-select-wrap .select2-container--default.select2-container--disabled .select2-selection--multiple {
+        background: #f8f9fa;
+        cursor: not-allowed;
+    }
+    .subject-select-wrap .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        background: #e8f0fe;
+        border: 1px solid #c6dafc;
+        border-radius: 16px;
+        color: #1a73e8;
+        font-size: .78rem;
+        font-weight: 600;
+        padding: .16rem .45rem .16rem 1.35rem;
+        margin-top: .18rem;
+    }
+    .subject-select-wrap .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+        border-right: 1px solid #c6dafc;
+        color: #1a73e8;
+        height: 100%;
+        padding: 0 .32rem;
+    }
+    .subject-select-wrap .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+        background: #d2e3fc;
+        color: #174ea6;
+    }
+    .subject-select-wrap .select2-container--default .select2-search--inline .select2-search__field {
+        height: 24px;
+        margin-top: .2rem;
+        font-size: .875rem;
+    }
+    .select2-results__option {
+        font-size: .875rem;
+    }
+    .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+        background: #405189;
+    }
+    .select2-container--default .select2-results__option--disabled {
+        color: #adb5bd;
+        font-style: italic;
     }
 
     /* ── table ─────────────────────────────────────────────── */
@@ -331,14 +387,17 @@
                         <div class="col-label">
                             <i class="ri-price-tag-3-line"></i> Subjects
                         </div>
-                        <select
-                            name="subjects[]"
-                            id="subjectSelect"
-                            multiple
-                            size="8"
-                            required
-                            disabled
-                        ></select>
+                        <div class="subject-select-wrap">
+                            <select
+                                name="subjects[]"
+                                id="subjectSelect"
+                                class="form-select subject-multiselect"
+                                multiple
+                                required
+                                disabled
+                                data-placeholder="Search and select subjects"
+                            ></select>
+                        </div>
                         <div class="form-text" id="subjectHint" style="color:#adb5bd">
                             Select a class first
                         </div>
@@ -436,12 +495,24 @@
                                 </td>
 
                                 <td class="td-actions">
-                                    <a href="#"
-                                       class="btn-del"
-                                       title="Remove all subjects from this class"
-                                       onclick="return confirm('Remove all subjects from {{ addslashes($class?->name ?? 'this class') }}?')">
-                                        <i class="ri-delete-bin-line"></i>
-                                    </a>
+                                    @if($class)
+                                        <form
+                                            action="{{ route('class-subjects.destroy', $class->id) }}"
+                                            method="POST"
+                                            class="d-inline"
+                                            onsubmit="return confirm('Remove all subjects from {{ addslashes($class->name) }}?')"
+                                        >
+                                            @csrf
+                                            @method('DELETE')
+                                            <button
+                                                type="submit"
+                                                class="btn-del"
+                                                title="Remove all subjects from this class"
+                                            >
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                        </form>
+                                    @endif
                                 </td>
 
                             </tr>
@@ -470,6 +541,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const classOptions = @json($classOptions);
     const allSubjects  = @json($subjects->map(fn($s) => ['id' => $s->id, 'name' => $s->subject_name])->values());
     const assignedMap  = @json($assignedSubjects->map(fn($rows) => $rows->pluck('subject_id')->toArray()));
+    const oldSubjects  = @json(array_map('strval', (array) old('subjects', [])));
 
     const branchSel   = document.getElementById('branchSelect');
     const classSel    = document.getElementById('classSelect');
@@ -477,6 +549,41 @@ document.addEventListener('DOMContentLoaded', function () {
     const classHint   = document.getElementById('classHint');
     const subjectHint = document.getElementById('subjectHint');
     const submitBtn   = document.getElementById('submitBtn');
+    let shouldRestoreOldSubjects = oldSubjects.length > 0;
+
+    function hasSelect2() {
+        return window.jQuery && typeof window.jQuery.fn.select2 === 'function';
+    }
+
+    function refreshSubjectPicker() {
+        if (hasSelect2()) {
+            window.jQuery(subjectSel).trigger('change.select2');
+        }
+    }
+
+    function setSubjectDisabled(disabled) {
+        subjectSel.disabled = disabled;
+
+        if (hasSelect2()) {
+            window.jQuery(subjectSel).prop('disabled', disabled).trigger('change.select2');
+        }
+    }
+
+    function updateSubmitState() {
+        const any = Array.from(subjectSel.options).some(o => o.selected && !o.disabled);
+        submitBtn.disabled = !any;
+    }
+
+    if (hasSelect2()) {
+        window.jQuery(subjectSel).select2({
+            width: '100%',
+            placeholder: subjectSel.dataset.placeholder,
+            closeOnSelect: false,
+            allowClear: true
+        }).on('change', function () {
+            updateSubmitState();
+        });
+    }
 
     function hint(el, msg, color) {
         el.textContent = msg;
@@ -487,6 +594,10 @@ document.addEventListener('DOMContentLoaded', function () {
         sel.innerHTML = placeholder
             ? `<option value="">${placeholder}</option>`
             : '';
+
+        if (sel === subjectSel) {
+            refreshSubjectPicker();
+        }
     }
 
     /* ── Branch → Classes ───────────────────────────────────── */
@@ -496,7 +607,7 @@ document.addEventListener('DOMContentLoaded', function () {
         resetSel(classSel, '-- Select Class --');
         resetSel(subjectSel, '');
         classSel.disabled  = true;
-        subjectSel.disabled = true;
+        setSubjectDisabled(true);
         submitBtn.disabled = true;
         hint(classHint, '', '');
         hint(subjectHint, 'Select a class first', '#adb5bd');
@@ -523,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const classId = String(this.value);
 
         resetSel(subjectSel, '');
-        subjectSel.disabled = true;
+        setSubjectDisabled(true);
         submitBtn.disabled  = true;
         hint(subjectHint, '', '');
 
@@ -535,7 +646,7 @@ document.addEventListener('DOMContentLoaded', function () {
         allSubjects.forEach(s => {
             const already = taken.includes(String(s.id));
             const opt = new Option(
-                already ? s.name + '  ✓ already assigned' : s.name,
+                already ? s.name + ' - already assigned' : s.name,
                 s.id
             );
             if (already) {
@@ -546,20 +657,42 @@ document.addEventListener('DOMContentLoaded', function () {
             subjectSel.appendChild(opt);
         });
 
-        subjectSel.disabled = false;
+        if (shouldRestoreOldSubjects) {
+            oldSubjects.forEach(id => {
+                const opt = Array.from(subjectSel.options).find(o => String(o.value) === id && !o.disabled);
+
+                if (opt) {
+                    opt.selected = true;
+                }
+            });
+            shouldRestoreOldSubjects = false;
+        }
+
+        setSubjectDisabled(false);
 
         if (available === 0) {
             hint(subjectHint, 'All subjects already assigned to this class', '#dc3545');
             submitBtn.disabled = true;
         } else {
-            hint(subjectHint, available + ' available · Hold Ctrl/⌘ to select multiple', '#6c757d');
+            hint(subjectHint, available + ' available - search and select multiple subjects', '#6c757d');
         }
+
+        refreshSubjectPicker();
+        updateSubmitState();
     });
 
     /* ── Enable submit only when something is selected ──────── */
     subjectSel.addEventListener('change', function () {
-        const any = Array.from(this.options).some(o => o.selected && !o.disabled);
-        submitBtn.disabled = !any;
+        updateSubmitState();
+    });
+
+    subjectSel.closest('form').addEventListener('submit', function (event) {
+        updateSubmitState();
+
+        if (submitBtn.disabled) {
+            event.preventDefault();
+            hint(subjectHint, 'Please select at least one available subject', '#dc3545');
+        }
     });
 
     /* ── Restore old input after validation error ────────────── */

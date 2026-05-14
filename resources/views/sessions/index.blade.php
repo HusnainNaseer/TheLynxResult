@@ -67,6 +67,8 @@
                                     <thead>
                                         <tr>
                                             <th>Title</th>
+                                            <th>ERP Session ID</th>
+                                            <th>Status</th>
                                             <th>Total Working Days Term One</th>
                                             <th>Total Working Days Term two</th>
                                             <th class="text-center">Actions</th>
@@ -75,6 +77,14 @@
                                         @foreach ($wdays as $wday)
                                             <tr>
                                                 <td>{{ $wday->title }}</td>
+                                                <td>{{ $wday->erp_session_id ?: '-' }}</td>
+                                                <td>
+                                                    @if ($wday->is_active)
+                                                        <span class="badge bg-success">Active</span>
+                                                    @else
+                                                        <span class="badge bg-secondary">Inactive</span>
+                                                    @endif
+                                                </td>
                                                 <td>{{ $wday->t1_working_days }}</td>
                                                 <td>{{ $wday->t2_working_days }}</td>
 
@@ -85,6 +95,13 @@
                                                             class="btn btn-info btn-sm">
                                                             Edit
                                                         </a>
+
+                                                        @if (!$wday->is_active)
+                                                            <form method="POST" action="{{ route('sessions.activate', $wday) }}">
+                                                                @csrf
+                                                                <button type="submit" class="btn btn-success btn-sm">Activate</button>
+                                                            </form>
+                                                        @endif
 
                                                         {{-- <form method="POST" action="{{ route('sessions.destroy', $wday) }}"
                                                             onsubmit="return confirm('Are you sure?');">

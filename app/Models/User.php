@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends Authenticatable
 {
@@ -38,6 +39,8 @@ class User extends Authenticatable
         'profile_picture',
         'erp_picture',
         'branch_id',   
+        'session_id',
+        'erp_session_id',
         'teacher_id',        // add this
         'erp_employee_id',     // add this
         'storage_limit',
@@ -97,5 +100,15 @@ class User extends Authenticatable
             Log::error('Error fetching branch: ' . $e->getMessage());
             return null;
         }
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function schoolSession(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Session::class, 'session_id');
     }
 }

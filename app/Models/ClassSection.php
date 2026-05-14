@@ -16,6 +16,8 @@ class ClassSection extends Model
     protected $fillable = [
         'class_id',
         'section_id',
+        'session_id',
+        'erp_session_id',
         'erp_class_id',
         'erp_section_id',
     ];

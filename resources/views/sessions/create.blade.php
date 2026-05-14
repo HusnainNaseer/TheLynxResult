@@ -21,6 +21,14 @@
 
                                 <div class="col-md-12">
                                     <div class="mb-3">
+                                        <label class="form-label">ERP Session ID</label>
+                                        <input type="text" name="erp_session_id" class="form-control"
+                                            placeholder="ERP session id">
+                                    </div>
+                                </div>
+
+                                <div class="col-md-12">
+                                    <div class="mb-3">
                                         <label class="form-label">Term one Working Days </label>
                                         <input type="number" name="term_one_working_days" class="form-control"
                                             placeholder="Term 1 Working Days" required>

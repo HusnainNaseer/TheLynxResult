@@ -10,6 +10,8 @@ class Classes extends Model
 
     protected $fillable = [
         'erp_class_id',
+        'session_id',
+        'erp_session_id',
         'name',
         'erp_branch_id',
         'owned_by',        // keep for backward compat

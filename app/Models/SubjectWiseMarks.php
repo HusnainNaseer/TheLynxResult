@@ -8,6 +8,8 @@ class SubjectWiseMarks extends Model
 {
     protected $fillable=[
         'subject_name',
+        'session_id',
+        'erp_session_id',
         'term_one_mark',
         'term_two_mark',
         'created_by'

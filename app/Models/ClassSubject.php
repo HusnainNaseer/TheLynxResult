@@ -11,6 +11,8 @@ class ClassSubject extends Model
 
     protected $fillable = [
         'branch_id',
+        'session_id',
+        'erp_session_id',
         'class_id',
         'subject_id',
     ];

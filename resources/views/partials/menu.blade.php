@@ -1,5 +1,22 @@
 <div class="vertical-menu">
     <div data-simplebar class="h-100">
+        @php
+            $setupActive = request()->routeIs(
+                'sessions.*',
+                'classes.*',
+                'sections.*',
+                'class-sections.*',
+                'class-subjects.*',
+                'subject-marks.*',
+                'assign-subjects.*'
+            );
+
+            $resultsActive = request()->routeIs(
+                'students.result',
+                'results.*',
+                'student_result.*'
+            );
+        @endphp
 
         <!-- User details -->
         <div class="user-profile text-center mt-3">
@@ -23,16 +40,16 @@
             <ul class="metismenu list-unstyled" id="side-menu">
                 {{-- <li class="menu-title">Menu</li> --}}
 
-                <li>
-                    <a href="{{ route('dashboard') }}" class="waves-effect">
+                <li class="{{ request()->routeIs('dashboard') ? 'mm-active' : '' }}">
+                    <a href="{{ route('dashboard') }}" class="waves-effect {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                         <i class="ri-dashboard-line"></i>
                         {{-- <span class="badge rounded-pill bg-success float-end">3</span> --}}
                         <span>Dashboard</span>
                     </a>
                 </li>
                 @role('Admin')
-                    <li>
-                        <a href="{{ route('teachers.index') }}" class="waves-effect">
+                    <li class="{{ request()->routeIs('teachers.*') ? 'mm-active' : '' }}">
+                        <a href="{{ route('teachers.index') }}" class="waves-effect {{ request()->routeIs('teachers.*') ? 'active' : '' }}">
                             <i class="ri-dashboard-line"></i>
                             {{-- <span class="badge rounded-pill bg-success float-end">3</span> --}}
                             <span>Employees List</span>
@@ -41,17 +58,19 @@
                 @endrole
 
                 @role('Admin')
-                    <li>
-                        <a href="javascript:void(0);" class="has-arrow waves-effect">
+                    <li class="{{ $setupActive ? 'mm-active' : '' }}">
+                        <a href="javascript:void(0);" class="has-arrow waves-effect {{ $setupActive ? 'active' : '' }}">
                             <i class="ri-briefcase-line"></i>
                             <span>Setup</span>
                         </a>
-                        <ul class="sub-menu" aria-expanded="false">
+                        <ul class="sub-menu {{ $setupActive ? 'mm-show' : '' }}" aria-expanded="{{ $setupActive ? 'true' : 'false' }}">
                             @role('Admin')
-                            <li><a href="{{ route('sessions.index') }}">Sessions</a></li>
+                            <li class="{{ request()->routeIs('sessions.*') ? 'mm-active' : '' }}">
+                                <a href="{{ route('sessions.index') }}" class="{{ request()->routeIs('sessions.*') ? 'active' : '' }}">Sessions</a>
+                            </li>
 
                             <li class="nav-item">
-                                <a class="nav-link menu-link {{ request()->routeIs('assign-subjects.*') ? 'active' : '' }}"
+                                <a class="nav-link menu-link {{ request()->routeIs('classes.*') ? 'active' : '' }}"
                                     href="{{ route('classes.index') }}">
                                   
                                     <span data-key="t-assign-subjects">All Classes</span>
@@ -59,7 +78,7 @@
                             </li>
 
                             <li class="nav-item">
-                                <a class="nav-link menu-link {{ request()->routeIs('assign-subjects.*') ? 'active' : '' }}"
+                                <a class="nav-link menu-link {{ request()->routeIs('sections.*') ? 'active' : '' }}"
                                     href="{{ route('sections.index') }}">
                                   
                                     <span data-key="t-assign-subjects">All Sections</span>
@@ -67,21 +86,23 @@
                             </li>
 
                             <li class="nav-item">
-                                <a class="nav-link menu-link {{ request()->routeIs('assign-subjects.*') ? 'active' : '' }}"
+                                <a class="nav-link menu-link {{ request()->routeIs('class-sections.*') ? 'active' : '' }}"
                                     href="{{ route('class-sections.index') }}">
                                   
                                     <span data-key="t-assign-subjects">Class and Sections</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link menu-link {{ request()->routeIs('assign-subjects.*') ? 'active' : '' }}"
+                                <a class="nav-link menu-link {{ request()->routeIs('class-subjects.*') ? 'active' : '' }}"
                                     href="{{ route('class-subjects.index') }}">
                                   
                                     <span data-key="t-assign-subjects">Class and Subjects</span>
                                 </a>
                             </li>
 
-                            <li><a href="{{ route('subject-marks.index') }}">Subject Marks</a></li>
+                            <li class="{{ request()->routeIs('subject-marks.*') ? 'mm-active' : '' }}">
+                                <a href="{{ route('subject-marks.index') }}" class="{{ request()->routeIs('subject-marks.*') ? 'active' : '' }}">Subject Marks</a>
+                            </li>
                             
                             <li class="nav-item">
                                 <a class="nav-link menu-link {{ request()->routeIs('assign-subjects.*') ? 'active' : '' }}"
@@ -98,14 +119,18 @@
                     </li>
                 @endrole
 
-                <li>
-                    <a href="javascript:void(0);" class="has-arrow waves-effect">
+                <li class="{{ $resultsActive ? 'mm-active' : '' }}">
+                    <a href="javascript:void(0);" class="has-arrow waves-effect {{ $resultsActive ? 'active' : '' }}">
                         <i class="ri-file-list-3-line"></i>
                         <span>Student Result</span>
                     </a>
-                    <ul class="sub-menu" aria-expanded="false">
-                        <li><a href="{{ route('students.result') }}">Result List</a></li>
-                        <li><a href="{{ route('results.create') }}">Create Result</a></li>
+                    <ul class="sub-menu {{ $resultsActive ? 'mm-show' : '' }}" aria-expanded="{{ $resultsActive ? 'true' : 'false' }}">
+                        <li class="{{ request()->routeIs('students.result') ? 'mm-active' : '' }}">
+                            <a href="{{ route('students.result') }}" class="{{ request()->routeIs('students.result') ? 'active' : '' }}">Result List</a>
+                        </li>
+                        <li class="{{ request()->routeIs('results.create') ? 'mm-active' : '' }}">
+                            <a href="{{ route('results.create') }}" class="{{ request()->routeIs('results.create') ? 'active' : '' }}">Create Result</a>
+                        </li>
                     </ul>
                 </li>
 

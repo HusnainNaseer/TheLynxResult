@@ -28,6 +28,17 @@
 
                                 <div class="col-md-12">
                                     <div class="mb-3">
+                                        <label class="form-label">ERP Session ID</label>
+                                        <input type="text"
+                                               value="{{ old('erp_session_id', $session->erp_session_id) }}"
+                                               name="erp_session_id"
+                                               class="form-control"
+                                               placeholder="ERP session id">
+                                    </div>
+                                </div>
+
+                                <div class="col-md-12">
+                                    <div class="mb-3">
                                         <label class="form-label">Term one Working Days </label>
                                         <input type="number"
                                                value="{{ old('t1_working_days', $session->t1_working_days) }}"

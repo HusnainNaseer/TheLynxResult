@@ -7,8 +7,11 @@ use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
+use App\Models\Session;
+use App\Services\StudentSyncService;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -23,7 +26,7 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request, StudentSyncService $studentSyncService): RedirectResponse
     {
         $request->authenticate();
 
@@ -52,6 +55,26 @@ class AuthenticatedSessionController extends Controller
         }
 
         $request->session()->regenerate();
+
+        $activeSession = Session::active()->first();
+
+        if ($activeSession && Schema::hasColumn('users', 'session_id')) {
+            $sessionData = [
+                'session_id' => $activeSession->id,
+            ];
+
+            if (Schema::hasColumn('users', 'erp_session_id')) {
+                $sessionData['erp_session_id'] = $activeSession->erp_session_id ?: (string) $activeSession->id;
+            }
+
+            $user->forceFill($sessionData)->save();
+        }
+
+        try {
+            $studentSyncService->syncForActiveSession();
+        } catch (\Throwable $e) {
+            Log::error('Student sync on login failed for user ' . $user->id . ': ' . $e->getMessage());
+        }
 
         return redirect()->intended(route('dashboard', absolute: false));
     }

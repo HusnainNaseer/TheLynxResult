@@ -27,6 +27,9 @@
         <!-- Responsive datatable examples -->
         <link href="{{asset('assets/auth/libs/datatables.net-responsive-bs4/css/responsive.bootstrap4.min.css')}}" rel="stylesheet" type="text/css" />  
 
+        <!-- Select2 -->
+        <link href="{{ asset('assets/auth/libs/select2/css/select2.min.css')}}" rel="stylesheet" type="text/css" />
+
         <!-- Bootstrap Css -->
         <link href="{{asset('assets/auth/css/bootstrap.min.css')}}" id="bootstrap-style" rel="stylesheet" type="text/css" />
         <!-- Icons Css -->

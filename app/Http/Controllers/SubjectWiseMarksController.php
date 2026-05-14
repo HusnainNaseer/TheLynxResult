@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SubjectWiseMarks;
+use App\Models\Session;
 use Illuminate\Http\Request;
 
 class SubjectWiseMarksController extends Controller
@@ -19,7 +20,10 @@ class SubjectWiseMarksController extends Controller
             return redirect()->route('profile.edit')->with('error', 'Please Fill Branch Information to access results.');
         }
         // dd(auth()->user()->id);
-        $subject_marks = SubjectWiseMarks::where('created_by', auth()->user()->id)->get();
+        $activeSession = Session::active()->first();
+        $subject_marks = SubjectWiseMarks::where('created_by', auth()->user()->id)
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+            ->get();
 
         //    dd($subject_marks);
         return view('subject_marks.index', ['subject_marks' => $subject_marks]);
@@ -32,6 +36,7 @@ class SubjectWiseMarksController extends Controller
     {
         $subjects = SubjectWiseMarks::select('subject_name', 'id')
             ->where('created_by', auth()->user()->id)
+            ->when(Session::active()->first(), fn($query, $session) => $query->where('session_id', $session->id))
             ->distinct()
             ->get();
 
@@ -48,8 +53,16 @@ class SubjectWiseMarksController extends Controller
     'term_one_marks' => 'required|numeric',
     'term_two_marks' => 'required|numeric',
 ]);
+        $activeSession = Session::active()->first();
+
+        if (!$activeSession) {
+            return back()->withInput()->with('error', 'Please activate a session before creating subjects.');
+        }
+
         $submark = new SubjectWiseMarks;
         $submark->subject_name = $request->subject_name;
+        $submark->session_id = $activeSession->id;
+        $submark->erp_session_id = $activeSession->erp_session_id ?: (string) $activeSession->id;
         $submark->term_one_marks = $request->term_one_marks;
         $submark->term_two_marks = $request->term_two_marks;
         $submark->created_by = auth()->user()->id;

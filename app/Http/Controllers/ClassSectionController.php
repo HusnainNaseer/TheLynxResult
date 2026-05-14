@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Classes;
 use App\Models\ClassSection;
 use App\Models\Section;
+use App\Models\Session;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -12,35 +14,27 @@ class ClassSectionController extends Controller
 {
     public function index()
     {
-        $totalInDb = ClassSection::count();
-        $branches  = collect();
+        $activeSession = Session::active()->first();
+        $classSectionQuery = ClassSection::query()
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
+        $classQuery = Classes::query()
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
 
-        try {
-            $response = Http::timeout(10)->get(env('API_URL') . 'get-branches');
+        $totalInDb = (clone $classSectionQuery)->count();
+        $usedBranchIds = (clone $classQuery)->select('erp_branch_id')
+            ->distinct()
+            ->whereNotNull('erp_branch_id')
+            ->pluck('erp_branch_id');
 
-            if ($response->successful()) {
-                $data        = $response->json();
-                $allBranches = $data['data'] ?? $data;
+        $branches = Branch::whereIn('erp_branch_id', $usedBranchIds)
+            ->orderBy('name')
+            ->get()
+            ->map(fn($branch) => [
+                'id' => $branch->erp_branch_id,
+                'name' => $branch->name,
+            ]);
 
-                $usedBranchIds = Classes::select('erp_branch_id')
-                    ->distinct()
-                    ->whereNotNull('erp_branch_id')
-                    ->pluck('erp_branch_id')
-                    ->toArray();
-
-                $branches = collect($allBranches)
-                    ->filter(fn($b) => in_array($b['id'], $usedBranchIds))
-                    ->map(fn($b) => [
-                        'id'   => $b['id'],
-                        'name' => $b['name'] ?? $b['branch_name'] ?? 'Branch #' . $b['id'],
-                    ])
-                    ->values();
-            }
-        } catch (\Exception $e) {
-            Log::error('Branch load failed in ClassSectionController: ' . $e->getMessage());
-        }
-
-        $grouped = ClassSection::with(['class', 'section'])
+        $grouped = (clone $classSectionQuery)->with(['class', 'section'])
             ->whereNotNull('class_id')
             ->get()
             ->groupBy('class_id');
@@ -51,6 +45,12 @@ class ClassSectionController extends Controller
     public function sync()
     {
         try {
+            $activeSession = Session::active()->first();
+
+            if (!$activeSession) {
+                return back()->with('error', 'Please activate a session before syncing class sections.');
+            }
+
             $response = Http::timeout(15)->get(env('API_URL') . 'get-class-section');
 
             if (!$response->successful()) {
@@ -66,9 +66,11 @@ class ClassSectionController extends Controller
 
             // Pre-load local maps keyed by ERP id
             $classByErpId   = Classes::whereNotNull('erp_class_id')
+                ->where('session_id', $activeSession->id)
                 ->get()->keyBy(fn($c) => (string) $c->erp_class_id);
 
             $sectionByErpId = Section::whereNotNull('erp_section_id')
+                ->where('session_id', $activeSession->id)
                 ->get()->keyBy(fn($s) => (string) $s->erp_section_id);
 
             $synced  = 0;
@@ -88,8 +90,14 @@ class ClassSectionController extends Controller
                 // If class not synced yet, create it now
                 if (!$class) {
                     $class = Classes::updateOrCreate(
-                        ['erp_class_id' => $erpClassId],
-                        ['name' => $row['class_name'] ?? ('Class #' . $erpClassId)]
+                        [
+                            'erp_class_id' => $erpClassId,
+                            'session_id' => $activeSession->id,
+                        ],
+                        [
+                            'erp_session_id' => $activeSession->erp_session_id ?: (string) $activeSession->id,
+                            'name' => $row['class_name'] ?? ('Class #' . $erpClassId),
+                        ]
                     );
                     $classByErpId->put($erpClassId, $class);
                 }
@@ -100,8 +108,14 @@ class ClassSectionController extends Controller
                 if (!$section) {
                     $sectionData = $row['section_name'] ?? [];
                     $section = Section::updateOrCreate(
-                        ['erp_section_id' => $erpSectionId],
-                        ['name' => $sectionData['name'] ?? ('Section #' . $erpSectionId)]
+                        [
+                            'erp_section_id' => $erpSectionId,
+                            'session_id' => $activeSession->id,
+                        ],
+                        [
+                            'erp_session_id' => $activeSession->erp_session_id ?: (string) $activeSession->id,
+                            'name' => $sectionData['name'] ?? ('Section #' . $erpSectionId),
+                        ]
                     );
                     $sectionByErpId->put($erpSectionId, $section);
                 }
@@ -110,8 +124,10 @@ class ClassSectionController extends Controller
                     [
                         'class_id'   => $class->id,
                         'section_id' => $section->id,
+                        'session_id' => $activeSession->id,
                     ],
                     [
+                        'erp_session_id' => $activeSession->erp_session_id ?: (string) $activeSession->id,
                         'erp_class_id'   => $erpClassId,
                         'erp_section_id' => $erpSectionId,
                     ]

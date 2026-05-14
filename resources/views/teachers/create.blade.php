@@ -379,7 +379,7 @@
             const strengthLabel = document.getElementById('strengthLabel');
             const matchStatus = document.getElementById('matchStatus');
 
-            const base = "{{ request()->root() }}";
+            const base = "{{ env('ERP_URL') }}";
 
             /* ── Step indicator helpers ───────────────────────────────── */
             function markStep(n, state) { // state: 'active' | 'done' | ''
@@ -411,13 +411,13 @@
             branchLoader.classList.add('show');
             setStatus(branchStatus, 'Loading branches…', '');
 
-            fetch(`${base}/api/branches`)
+            fetch(`${base}/api/get-branches`)
                 .then(r => r.json())
                 .then(data => {
                     const branches = data.data || data;
 
                     if (Array.isArray(branches) && branches.length) {
-                        branchSel.innerHTML = '<option value="" disabled selected>-- Select Branch --</option>';
+                        branchSel.innerHTML = '<option value="" disabled selected>-- Select Branch --</option> <option value="2">Head Office</option>';
 
                         branches.forEach(b => {
                             const opt = new Option(b.branch_name || b.name, b.id);
@@ -446,7 +446,7 @@
                 employeeLoader.classList.add('show');
                 setStatus(employeeStatus, 'Fetching employees…', '');
 
-                fetch(`${base}/api/employees?branch_id=${branchId}`)
+                fetch(`${base}/api/get-employees-by-branch/${branchId}`)
                     .then(r => r.json())
                     .then(data => {
                         const employees = data.data || data;
@@ -544,7 +544,7 @@
             }
 
             function fetchEmployeeDetails(empId) {
-                fetch(`${base}/api/employees/${empId}`)
+                fetch(`${base}/api/get-employees-by-branch/${empId}`)
                     .then(r => r.json())
                     .then(data => {
                         if (data.success && data.data) {

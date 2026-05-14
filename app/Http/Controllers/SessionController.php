@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Session;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Session as FacadesSession;
+use Illuminate\Support\Facades\DB;
 
 class SessionController extends Controller
 {
@@ -44,6 +44,7 @@ class SessionController extends Controller
         // dd($request->all());
         $request->validate([
             'Session' => 'required|string',
+            'erp_session_id' => 'nullable|string',
             'term_one_working_days' => 'required',
             'term_two_working_days' => 'required',
         ]);
@@ -58,6 +59,7 @@ class SessionController extends Controller
 
 
         $wdays = new Session;
+        $wdays->erp_session_id = $request->erp_session_id;
         $wdays->title = $request->Session;
         $wdays->t1_working_days = $request->term_one_working_days;
         $wdays->t2_working_days = $request->term_two_working_days;
@@ -94,12 +96,14 @@ class SessionController extends Controller
     // Validate the input
     $request->validate([
         'title' => 'required',
+        'erp_session_id' => 'nullable|string',
         't1_working_days' => 'required|numeric',
         't2_working_days' => 'required|numeric',
     ]);
 
     // Update the session
     $session->update([
+        'erp_session_id' => $request->erp_session_id,
         'title' => $request->title,
         't1_working_days' => $request->t1_working_days,
         't2_working_days' => $request->t2_working_days,
@@ -118,6 +122,25 @@ class SessionController extends Controller
         $session->delete();
         return redirect()->route('sessions.index')->with('succes','Session Deletedd Successfully');
         
+    }
+
+    public function activate(Session $session)
+    {
+        abort_unless(auth()->user()?->hasRole('Admin'), 403);
+
+        DB::transaction(function () use ($session) {
+            Session::query()->update([
+                'is_active' => false,
+                'active_lock' => null,
+            ]);
+
+            $session->update([
+                'is_active' => true,
+                'active_lock' => 'active',
+            ]);
+        });
+
+        return redirect()->route('sessions.index')->with('success', $session->title . ' is now the active session.');
     }
     public function session_working_days(Request $request)
 {
@@ -169,4 +192,3 @@ public function session_search(Request $request){
     return response()->json($year);
 }
 }
-

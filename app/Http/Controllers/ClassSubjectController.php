@@ -2,49 +2,35 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Classes;
 use App\Models\ClassSubject;
+use App\Models\Session;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 class ClassSubjectController extends Controller
 {
     public function index()
     {
-        $branches = collect();
+        $activeSession = Session::active()->first();
+        $classQuery = Classes::query()
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
 
-        try {
+        $usedBranchIds = (clone $classQuery)->select('erp_branch_id')
+            ->distinct()
+            ->whereNotNull('erp_branch_id')
+            ->pluck('erp_branch_id');
 
-            $response = Http::timeout(10)->get(env('API_URL') . 'get-branches');
+        $branches = Branch::whereIn('erp_branch_id', $usedBranchIds)
+            ->orderBy('name')
+            ->get()
+            ->map(fn($branch) => [
+                'id' => $branch->erp_branch_id,
+                'name' => $branch->name,
+            ]);
 
-            if ($response->successful()) {
-
-                $data = $response->json();
-
-                $allBranches = $data['data'] ?? $data;
-
-                $usedBranchIds = Classes::select('erp_branch_id')
-                    ->distinct()
-                    ->whereNotNull('erp_branch_id')
-                    ->pluck('erp_branch_id')
-                    ->toArray();
-
-                $branches = collect($allBranches)
-                    ->filter(fn($b) => in_array($b['id'], $usedBranchIds))
-                    ->map(fn($b) => [
-                        'id'   => $b['id'],
-                        'name' => $b['name'] ?? $b['branch_name'] ?? 'Branch #' . $b['id'],
-                    ])
-                    ->values();
-            }
-        } catch (\Exception $e) {
-
-            Log::error($e->getMessage());
-        }
-
-        $classes = Classes::orderBy('name')->get();
+        $classes = (clone $classQuery)->orderBy('name')->get();
 
         $subjects = DB::table('subject_wise_marks')
             ->select('id', 'subject_name')
@@ -53,6 +39,7 @@ class ClassSubjectController extends Controller
             ->get();
 
         $assignedSubjects = ClassSubject::with('class')
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
             ->get()
             ->groupBy('class_id');
 
@@ -76,24 +63,64 @@ class ClassSubjectController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'branch_id' => 'required',
             'class_id' => 'required',
             'subjects' => 'required|array',
+            'subjects.*' => 'required|integer',
         ]);
 
-        // delete old subjects of class
-        ClassSubject::where('class_id', $request->class_id)->delete();
+        $subjectIds = collect($validated['subjects'])
+            ->map(fn($subjectId) => (int) $subjectId)
+            ->unique()
+            ->values();
+        $activeSession = Session::active()->first();
 
-        foreach ($request->subjects as $subjectId) {
+        if (!$activeSession) {
+            return back()
+                ->withInput()
+                ->with('error', 'Please activate a session before assigning class subjects.');
+        }
+
+        $alreadyAssigned = ClassSubject::where('class_id', $validated['class_id'])
+            ->where('session_id', $activeSession->id)
+            ->whereIn('subject_id', $subjectIds)
+            ->pluck('subject_id')
+            ->map(fn($subjectId) => (int) $subjectId);
+
+        $newSubjectIds = $subjectIds->diff($alreadyAssigned);
+
+        if ($newSubjectIds->isEmpty()) {
+            return back()
+                ->withInput()
+                ->with('error', 'Selected subject(s) are already assigned to this class.');
+        }
+
+        foreach ($newSubjectIds as $subjectId) {
 
             ClassSubject::create([
-                'branch_id' => $request->branch_id,
-                'class_id' => $request->class_id,
+                'branch_id' => $validated['branch_id'],
+                'session_id' => $activeSession->id,
+                'erp_session_id' => $activeSession->erp_session_id ?: (string) $activeSession->id,
+                'class_id' => $validated['class_id'],
                 'subject_id' => $subjectId,
             ]);
         }
 
         return back()->with('success', 'Subjects assigned successfully.');
+    }
+
+    public function destroy($classId)
+    {
+        $activeSession = Session::active()->first();
+        $deleted = ClassSubject::where('class_id', $classId)
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+            ->delete();
+
+        if (!$deleted) {
+            return back()->with('error', 'No subjects were found for this class.');
+        }
+
+        return back()->with('success', 'Class subjects removed successfully.');
     }
 }
