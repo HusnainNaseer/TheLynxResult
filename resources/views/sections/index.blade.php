@@ -127,9 +127,14 @@
                             <span class="badge bg-primary ms-2">{{ $totalInDb }}</span>
                         </h6>
                         <small class="text-muted">
-                            {{ $totalInDb > 0 ? 'Data loaded from local database.' : 'No sections synced yet. Click the button to import.' }}
+                            @role('Admin')
+                                {{ $totalInDb > 0 ? 'Data loaded from local database.' : 'No sections synced yet. Click the button to import.' }}
+                            @else
+                                Sections loaded from the active session records.
+                            @endrole
                         </small>
                     </div>
+                    @role('Admin')
                     <div class="d-flex gap-2">
                         @if ($totalInDb === 0)
                             <form action="{{ route('sections.sync') }}" method="POST">
@@ -148,6 +153,7 @@
                             </form>
                         @endif
                     </div>
+                    @endrole
                 </div>
             </div>
 
@@ -205,8 +211,6 @@
             {{-- Build lookup maps --}}
             @php
                 $branchMap = collect($branches)->pluck('name', 'id')->toArray();
-                $classMap = \App\Models\Classes::pluck('name', 'erp_class_id')->toArray();
-                $allSections = \App\Models\Section::orderBy('name')->get();
             @endphp
 
             {{-- Sections Grid --}}

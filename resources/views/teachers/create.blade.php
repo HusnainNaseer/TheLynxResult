@@ -183,7 +183,7 @@
                                             <div class="select-wrapper">
                                                 <select class="form-select @error('branch_id') is-invalid @enderror"
                                                     id="branch_id" name="branch_id" required>
-                                                    <option value="" disabled selected>-- Select Branch --</option>
+                                                    <option value="" disabled selected hidden>-- Select Branch --</option>
                                                 </select>
                                                 <div class="spinner-border spinner-border-sm text-primary select-loader"
                                                     id="branchLoader" role="status">
@@ -201,17 +201,25 @@
                                             <label for="role" class="form-label fw-medium">
                                                 Role <span class="text-danger">*</span>
                                             </label>
+                                            @role('Coordinator')
+                                                <input type="hidden" name="role" value="Teacher">
+                                                <input type="text" class="form-control" value="Teacher" disabled>
+                                                <div class="form-text">Coordinator can create Teacher users only.</div>
+                                            @else
                                             <select class="form-select @error('role') is-invalid @enderror" id="role"
                                                 name="role" required>
                                                 <option value="" disabled selected>-- Select Role --</option>
                                                 <option value="Teacher" {{ old('role') == 'Teacher' ? 'selected' : '' }}>
                                                     🎓 Teacher
                                                 </option>
+                                                @role('Admin')
                                                 <option value="Coordinator"
                                                     {{ old('role') == 'Coordinator' ? 'selected' : '' }}>
                                                     📋 Coordinator
                                                 </option>
+                                                @endrole
                                             </select>
+                                            @endrole
                                             @error('role')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
@@ -270,7 +278,8 @@
                                             <div class="text-muted small" id="previewDesignation"></div>
                                         </div>
 
-                                    </div> {{-- Hidden email field (submitted with form for reference) --}}
+                                    </div> {{-- Hidden employee fields (submitted with form for reference) --}}
+                                    <input type="hidden" id="employee_name" name="employee_name">
                                     <input type="hidden" id="employee_email" name="employee_email">
                                 </div>
 
@@ -369,6 +378,7 @@
             const previewName = document.getElementById('previewName');
             const previewEmail = document.getElementById('previewEmail');
             const previewDesg = document.getElementById('previewDesignation');
+            const hiddenName = document.getElementById('employee_name');
             const hiddenEmail = document.getElementById('employee_email');
             const previewImage = document.getElementById('previewImage');
             const noPicture = document.getElementById('noPicture');
@@ -379,7 +389,9 @@
             const strengthLabel = document.getElementById('strengthLabel');
             const matchStatus = document.getElementById('matchStatus');
 
-            const base = "{{ env('ERP_URL') }}";
+            const localBranches = @json($branches);
+            const employeesUrl = "{{ route('api.employees') }}";
+            const erpAssetBase = "{{ rtrim(config('services.erp.web_url'), '/') }}";
 
             /* ── Step indicator helpers ───────────────────────────────── */
             function markStep(n, state) { // state: 'active' | 'done' | ''
@@ -393,7 +405,7 @@
 
             function refreshSteps() {
                 const hasBranch = branchSel.value !== '';
-                const hasRole = roleSel.value !== '';
+                const hasRole = !roleSel || roleSel.value !== '';
                 const hasEmployee = employeeSel.value !== '';
 
                 markStep(1, (hasBranch && hasRole) ? 'done' : 'active');
@@ -407,37 +419,49 @@
                 el.className = `form-text ${type ? 'text-' + type : ''}`;
             }
 
-            /* ── 1. Fetch active branches on load ─────────────────────── */
+            function addPlaceholder(select, text) {
+                select.innerHTML = '';
+                const placeholder = new Option(text, '');
+                placeholder.disabled = true;
+                placeholder.selected = true;
+                placeholder.hidden = true;
+                placeholder.style.display = 'none';
+                select.appendChild(placeholder);
+            }
+
+            /* ── 1. Load local branches on page load ─────────────────── */
             branchLoader.classList.add('show');
             setStatus(branchStatus, 'Loading branches…', '');
 
-            fetch(`${base}/api/get-branches`)
-                .then(r => r.json())
-                .then(data => {
-                    const branches = data.data || data;
+            addPlaceholder(branchSel, '-- Select Branch --');
 
-                    if (Array.isArray(branches) && branches.length) {
-                        branchSel.innerHTML = '<option value="" disabled selected>-- Select Branch --</option> <option value="2">Head Office</option>';
+            if (Array.isArray(localBranches) && localBranches.length) {
+                localBranches.forEach(b => {
+                    const opt = new Option(b.branch_name || b.name, b.id);
+                    // Restore old value after validation error
+                    if (String(b.id) === '{{ old('branch_id') }}') opt.selected = true;
+                    branchSel.appendChild(opt);
+                });
 
-                        branches.forEach(b => {
-                            const opt = new Option(b.branch_name || b.name, b.id);
-                            // Restore old value after validation error
-                            if (String(b.id) === '{{ old('branch_id') }}') opt.selected = true;
-                            branchSel.appendChild(opt);
-                        });
+                setStatus(branchStatus, `${localBranches.length} branch(es) loaded`, 'success');
+                if (localBranches.length === 1 && !branchSel.value) {
+                    branchSel.selectedIndex = 1;
+                }
+            } else {
+                setStatus(branchStatus, 'No branches found in local database', 'warning');
+            }
 
-                        setStatus(branchStatus, `${branches.length} active branch(es) loaded`, 'success');
-                    } else {
-                        setStatus(branchStatus, 'No active branches found', 'warning');
-                    }
-                })
-                .catch(() => setStatus(branchStatus, 'Error loading branches. Refresh to retry.', 'danger'))
-                .finally(() => branchLoader.classList.remove('show'));
+            branchLoader.classList.remove('show');
 
             /* ── 2. Fetch employees when branch changes ───────────────── */
             branchSel.addEventListener('change', function() {
                 const branchId = this.value;
                 refreshSteps();
+                branchSel.classList.remove('is-invalid');
+
+                if (!branchId) {
+                    return;
+                }
 
                 // Reset employee dropdown
                 employeeSel.disabled = true;
@@ -446,7 +470,7 @@
                 employeeLoader.classList.add('show');
                 setStatus(employeeStatus, 'Fetching employees…', '');
 
-                fetch(`${base}/api/get-employees-by-branch/${branchId}`)
+                fetch(`${employeesUrl}?branch_id=${encodeURIComponent(branchId)}`)
                     .then(r => r.json())
                     .then(data => {
                         const employees = data.data || data;
@@ -456,16 +480,16 @@
 
                         if (Array.isArray(employees) && employees.length) {
                             employees.forEach(emp => {
-                                console.log(emp);
-                                const label = emp.name + (emp.employee.designation ?
-                                    ` — ${emp.employee.designation.name}` : '');
+                                const employeeInfo = emp.employee || {};
+                                const designation = employeeInfo.designation ? employeeInfo.designation.name : '';
+                                const label = emp.name + (designation ?
+                                    ` - ${designation}` : '');
                                 const opt = new Option(label, emp.id);
                                 // Embed data directly on the option for instant preview
                                 opt.dataset.name = emp.name || '';
                                 opt.dataset.email = emp.email || '';
-                                opt.dataset.designation = (emp.employee.designation ?
-                                    `${emp.employee.designation.name}` : '');
-                                opt.dataset.picture = emp.employee.profile_img || '';
+                                opt.dataset.designation = designation;
+                                opt.dataset.picture = employeeInfo.profile_img || '';
                                 if (String(emp.id) === '{{ old('employee_id') }}') opt
                                     .selected = true;
                                 employeeSel.appendChild(opt);
@@ -491,7 +515,13 @@
                     .finally(() => employeeLoader.classList.remove('show'));
             });
 
-            roleSel.addEventListener('change', refreshSteps);
+            if (branchSel.value) {
+                branchSel.dispatchEvent(new Event('change'));
+            }
+
+            if (roleSel) {
+                roleSel.addEventListener('change', refreshSteps);
+            }
 
             /* ── 3. Show employee preview when one is selected ────────── */
             employeeSel.addEventListener('change', function() {
@@ -502,20 +532,19 @@
                 const email = selected.dataset.email;
                 const picture = selected.dataset.picture;
                 const desg = selected.dataset.designation;
-                const baseUrl = "{{ env('ERP_URL') }}";
-
                 if (name || email) {
 
                     previewName.textContent = name || '—';
                     previewEmail.textContent = email || '';
                     previewDesg.textContent = desg || '';
 
+                    hiddenName.value = name || '';
                     hiddenEmail.value = email || '';
 
                     // Set image
                     if (picture) {
                         noPicture.style.display = 'none';
-                        previewImage.src = `${baseUrl}/storage/emp_profile_images/${picture}`;
+                        previewImage.src = `${erpAssetBase}/storage/emp_profile_images/${picture}`;
                         previewImage.style.display = 'block';
                     } else {
                         noPicture.style.display = 'block';
@@ -537,6 +566,7 @@
 
             function hidePreview() {
                 preview.classList.remove('show');
+                hiddenName.value = '';
                 hiddenEmail.value = '';
                 previewName.textContent = '';
                 previewEmail.textContent = '';
@@ -544,7 +574,7 @@
             }
 
             function fetchEmployeeDetails(empId) {
-                fetch(`${base}/api/get-employees-by-branch/${empId}`)
+                fetch(`{{ url('api/employees') }}/${encodeURIComponent(empId)}`)
                     .then(r => r.json())
                     .then(data => {
                         if (data.success && data.data) {
@@ -552,6 +582,7 @@
                             previewName.textContent = e.name || '—';
                             previewEmail.textContent = e.email || '—';
                             previewDesg.textContent = e.designation || '';
+                            hiddenName.value = e.name || '';
                             hiddenEmail.value = e.email || '';
                             preview.classList.add('show');
                         }
@@ -638,6 +669,14 @@
 
             /* ── 7. Submit guard ──────────────────────────────────────── */
             document.getElementById('assignRoleForm').addEventListener('submit', function(e) {
+                if (!branchSel.value) {
+                    e.preventDefault();
+                    branchSel.classList.add('is-invalid');
+                    branchSel.focus();
+                    setStatus(branchStatus, 'Please select a branch.', 'danger');
+                    return;
+                }
+
                 if (passInput.value !== confirmInput.value) {
                     e.preventDefault();
                     confirmInput.classList.add('is-invalid');

@@ -172,6 +172,14 @@
                                                 <i class="ri-send-plane-line"></i>&nbsp;Save & FW to Coordinator
                                             </button>
                                         @endif
+
+                                        @if ($canCoordinatorApprove)
+                                            <button class="btn btn-success btn-lg workflow-submit" type="submit"
+                                                data-action-type="coordinator_approve"
+                                                {{ $subjectRows->isEmpty() ? 'disabled' : '' }}>
+                                                <i class="ri-check-line"></i>&nbsp;Save & Approve
+                                            </button>
+                                        @endif
                                     </div>
                                 </div>
                             </form>
@@ -246,6 +254,39 @@
                     if (subjectsData.length === 0) {
                         alertMessage('Please enter marks for at least one subject.', 'warning');
                         return;
+                    }
+
+                    if (submitAction === 'forward_coordinator' || submitAction === 'coordinator_approve') {
+                        const missingFields = [];
+
+                        if (!$('#promoted_class').val()) missingFields.push('Promoted To');
+                        if (!$('.term-one-working').val()) missingFields.push('Term One Working Days');
+                        if (!$('.term-two-working').val()) missingFields.push('Term Two Working Days');
+                        if (!$('#remarks').val()) missingFields.push('Remarks');
+
+                        if (missingFields.length) {
+                            const actionText = submitAction === 'coordinator_approve' ? 'approving' : 'forwarding to Coordinator';
+                            alertMessage('Please fill these fields before ' + actionText + ': ' + missingFields.join(', ') + '.', 'warning');
+                            return;
+                        }
+                    }
+
+                    if (submitAction === 'forward_coordinator') {
+                        const missingSubjects = [];
+
+                        $('.subject-row').each(function() {
+                            const subjectName = $(this).find('input[readonly]').val() || 'Subject';
+                            const termOne = $(this).find('.term-one-mark').val();
+
+                            if (termOne === '') {
+                                missingSubjects.push(subjectName);
+                            }
+                        });
+
+                        if (missingSubjects.length) {
+                            alertMessage('Please enter Term One marks for all subjects before forwarding to Coordinator. Missing: ' + missingSubjects.join(', ') + '.', 'warning');
+                            return;
+                        }
                     }
 
                     const formData = {

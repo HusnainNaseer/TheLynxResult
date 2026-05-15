@@ -21,7 +21,7 @@ class SubjectWiseMarksController extends Controller
         }
         // dd(auth()->user()->id);
         $activeSession = Session::active()->first();
-        $subject_marks = SubjectWiseMarks::where('created_by', auth()->user()->id)
+        $subject_marks = $this->scopedSubjectQuery()
             ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
             ->get();
 
@@ -34,8 +34,8 @@ class SubjectWiseMarksController extends Controller
      */
     public function create()
     {
-        $subjects = SubjectWiseMarks::select('subject_name', 'id')
-            ->where('created_by', auth()->user()->id)
+        $subjects = $this->scopedSubjectQuery()
+            ->select('subject_name', 'id')
             ->when(Session::active()->first(), fn($query, $session) => $query->where('session_id', $session->id))
             ->distinct()
             ->get();
@@ -63,6 +63,7 @@ class SubjectWiseMarksController extends Controller
         $submark->subject_name = $request->subject_name;
         $submark->session_id = $activeSession->id;
         $submark->erp_session_id = $activeSession->erp_session_id ?: (string) $activeSession->id;
+        $submark->branch_id = auth()->user()->branch_id;
         $submark->term_one_marks = $request->term_one_marks;
         $submark->term_two_marks = $request->term_two_marks;
         $submark->created_by = auth()->user()->id;
@@ -85,7 +86,11 @@ class SubjectWiseMarksController extends Controller
      */
     public function edit(string $id)
     {
-        $submark = SubjectWiseMarks::findOrFail($id);
+        $activeSession = Session::active()->first();
+        $submark = $this->scopedSubjectQuery()
+            ->where('id', $id)
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+            ->firstOrFail();
 
         return view('subject_marks.edit', compact('submark'));
     }
@@ -95,10 +100,15 @@ class SubjectWiseMarksController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $submark = SubjectWiseMarks::find($id);
+        $activeSession = Session::active()->first();
+        $submark = $this->scopedSubjectQuery()
+            ->where('id', $id)
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+            ->firstOrFail();
         $submark->subject_name = $request->subject_name;
         $submark->term_one_marks = $request->term_one_marks;
         $submark->term_two_marks = $request->term_two_marks;
+        $submark->branch_id = auth()->user()->branch_id;
         $submark->created_by = auth()->user()->id;
         $submark->save();
 
@@ -112,7 +122,11 @@ class SubjectWiseMarksController extends Controller
     public function destroy(string $id)
     {
 
-        $submark = SubjectWiseMarks::findOrFail($id);
+        $activeSession = Session::active()->first();
+        $submark = $this->scopedSubjectQuery()
+            ->where('id', $id)
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+            ->firstOrFail();
         $submark->delete();
         return redirect()->route('subject-marks.index')
             ->with('success', 'Record deleted successfully');
@@ -130,7 +144,12 @@ class SubjectWiseMarksController extends Controller
             }
 
             // Fetch subject from database
-            $subject = \App\Models\SubjectWiseMarks::find($subjectId);
+            $activeSession = Session::active()->first();
+
+            $subject = $this->scopedSubjectQuery()
+                ->where('id', $subjectId)
+                ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+                ->first();
 
             if (! $subject) {
                 return response()->json([
@@ -163,15 +182,29 @@ class SubjectWiseMarksController extends Controller
     }
     public function search_subject(Request $request){
         $search = $request->search;
-        $show = SubjectWiseMarks::get()->where('created_by' , auth()->id)
+        $activeSession = Session::active()->first();
+        $show = $this->scopedSubjectQuery()
+        ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
         ->where(function($show) use($search){
             $show->where('subject_name', 'LIKE' , "%{$search}%")
-            ->where('term_one_mark' , 'LIKE', "%{$search}%")
-            ->where('term_two_mark' , 'LIKE', "%{$search}%");
+            ->orWhere('term_one_marks' , 'LIKE', "%{$search}%")
+            ->orWhere('term_two_marks' , 'LIKE', "%{$search}%");
 
 
         })
         ->get();
         return response()->json($show);
+    }
+
+    private function scopedSubjectQuery()
+    {
+        $query = SubjectWiseMarks::query();
+        $user = auth()->user();
+
+        if (!$user?->hasAnyRole(['Admin', 'Coordinator'])) {
+            return $query->where('created_by', auth()->id());
+        }
+
+        return $query;
     }
 }

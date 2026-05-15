@@ -3,6 +3,7 @@
         @php
             $setupActive = request()->routeIs(
                 'sessions.*',
+                'branches.*',
                 'classes.*',
                 'sections.*',
                 'class-sections.*',
@@ -47,17 +48,17 @@
                         <span>Dashboard</span>
                     </a>
                 </li>
-                @role('Admin')
+                @hasanyrole('Admin|Coordinator')
                     <li class="{{ request()->routeIs('teachers.*') ? 'mm-active' : '' }}">
                         <a href="{{ route('teachers.index') }}" class="waves-effect {{ request()->routeIs('teachers.*') ? 'active' : '' }}">
-                            <i class="ri-dashboard-line"></i>
+                            <i class="ri-user-line"></i>
                             {{-- <span class="badge rounded-pill bg-success float-end">3</span> --}}
                             <span>Employees List</span>
                         </a>
                     </li>
-                @endrole
+                @endhasanyrole
 
-                @role('Admin')
+                @hasanyrole('Admin|Coordinator')
                     <li class="{{ $setupActive ? 'mm-active' : '' }}">
                         <a href="javascript:void(0);" class="has-arrow waves-effect {{ $setupActive ? 'active' : '' }}">
                             <i class="ri-briefcase-line"></i>
@@ -68,6 +69,16 @@
                             <li class="{{ request()->routeIs('sessions.*') ? 'mm-active' : '' }}">
                                 <a href="{{ route('sessions.index') }}" class="{{ request()->routeIs('sessions.*') ? 'active' : '' }}">Sessions</a>
                             </li>
+
+                            @can('view branches')
+                            <li class="nav-item">
+                                <a class="nav-link menu-link {{ request()->routeIs('branches.*') ? 'active' : '' }}"
+                                    href="{{ route('branches.index') }}">
+                                    <span data-key="t-branches">All Branches</span>
+                                </a>
+                            </li>
+                            @endcan
+                            @endrole
 
                             <li class="nav-item">
                                 <a class="nav-link menu-link {{ request()->routeIs('classes.*') ? 'active' : '' }}"
@@ -113,11 +124,10 @@
                             </li>
                             
                             
-                            @endrole
                             {{-- Add more setup links here --}}
                         </ul>
                     </li>
-                @endrole
+                @endhasanyrole
 
                 <li class="{{ $resultsActive ? 'mm-active' : '' }}">
                     <a href="javascript:void(0);" class="has-arrow waves-effect {{ $resultsActive ? 'active' : '' }}">
@@ -128,6 +138,14 @@
                         <li class="{{ request()->routeIs('students.result') ? 'mm-active' : '' }}">
                             <a href="{{ route('students.result') }}" class="{{ request()->routeIs('students.result') ? 'active' : '' }}">Result List</a>
                         </li>
+                        @hasanyrole('Admin|Coordinator')
+                        <li class="{{ request()->routeIs('results.coordinator-approvals') ? 'mm-active' : '' }}">
+                            <a href="{{ route('results.coordinator-approvals') }}" class="{{ request()->routeIs('results.coordinator-approvals') ? 'active' : '' }}">Coordinator Approval List</a>
+                        </li>
+                        <li class="{{ request()->routeIs('results.approved') ? 'mm-active' : '' }}">
+                            <a href="{{ route('results.approved') }}" class="{{ request()->routeIs('results.approved') ? 'active' : '' }}">Approved Results</a>
+                        </li>
+                        @endhasanyrole
                         <li class="{{ request()->routeIs('results.create') ? 'mm-active' : '' }}">
                             <a href="{{ route('results.create') }}" class="{{ request()->routeIs('results.create') ? 'active' : '' }}">Create Result</a>
                         </li>

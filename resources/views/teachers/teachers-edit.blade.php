@@ -423,23 +423,9 @@
                 });
             });
 
-            const apiBaseUrl = "{{ request()->root() }}";
-            const apiBranchesUrl = `${apiBaseUrl}/api/branches`;
-            const apiClassesUrl = `${apiBaseUrl}/get-classes`;
+            const classesByBranch = @json($classesByBranch ?? []);
             const currentBranchId = "{{ $user->branch_id ?? '' }}";
             const currentClassId = "{{ $user->class_id ?? '' }}";
-
-            function populateBranchDropdown(branches) {
-                const branchSelect = $('#branches');
-                branchSelect.empty().append('<option value="">-- Select Branch --</option>');
-
-                $.each(branches, function(index, branch) {
-                    const selected = branch.id == currentBranchId ? ' selected' : '';
-                    branchSelect.append(
-                        '<option value="' + branch.id + '"' + selected + '>' + (branch.branch_name || branch.name || branch.title || '') + '</option>'
-                    );
-                });
-            }
 
             function populateClassDropdown(classes, selectedClassId) {
                 const classSelect = $('#classes');
@@ -453,49 +439,23 @@
                 });
             }
 
-            function fetchBranches() {
-                $.get(apiBranchesUrl)
-                    .done(function(data) {
-                        const branches = data.data || data;
-                        if (Array.isArray(branches) && branches.length) {
-                            populateBranchDropdown(branches);
-                            if (currentBranchId) {
-                                fetchClasses(currentBranchId, currentClassId);
-                            }
-                        }
-                    })
-                    .fail(function() {
-                        console.error('Failed to load branches for edit page');
-                    });
-            }
-
             function fetchClasses(branchId, selectedClassId = '') {
                 if (!branchId) {
                     $('#classes').empty().append('<option value="">-- Select class --</option>');
                     return;
                 }
 
-                $.ajax({
-                    url: apiClassesUrl,
-                    type: 'GET',
-                    data: {
-                        branch_id: branchId
-                    },
-                    success: function(data) {
-                        const classes = data.data || data;
-                        if (Array.isArray(classes) && classes.length) {
-                            populateClassDropdown(classes, selectedClassId);
-                        } else {
-                            $('#classes').empty().append('<option value="">-- Select class --</option>');
-                        }
-                    },
-                    error: function() {
-                        $('#classes').empty().append('<option value="">-- Select class --</option>');
-                    }
-                });
+                const classes = classesByBranch[String(branchId)] || [];
+                if (Array.isArray(classes) && classes.length) {
+                    populateClassDropdown(classes, selectedClassId);
+                } else {
+                    $('#classes').empty().append('<option value="">-- Select class --</option>');
+                }
             }
 
-            fetchBranches();
+            if (currentBranchId) {
+                fetchClasses(currentBranchId, currentClassId);
+            }
 
             $('#branches').on('change', function() {
                 var branchId = $(this).val();

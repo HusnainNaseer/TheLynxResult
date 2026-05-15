@@ -30,6 +30,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'edit subjects',
             'view subjects',
             'delete subjects',
+            'view branches',
+            'sync branches',
         ];
 
         foreach ($permissions as $permission) {

@@ -144,10 +144,20 @@
                                     </div>
 
                                     <div class="col-md-6 mb-3">
-                                        <label for="branch_name" class="form-label">Branch Name *</label>
-                                        <input type="text" class="form-control" id="branch_name" name="branch_name"
-                                            value="{{ old('branch_name', Auth::user()->branch_name) }}"
-                                            placeholder="Enter branch name" required>
+                                        <label for="branch" class="form-label">Branch Name *</label>
+                                        <select class="form-select" id="branch" name="branch" required>
+                                            <option value="">-- Select Branch --</option>
+                                            @foreach ($branches as $branch)
+                                                <option value="{{ $branch->erp_branch_id }}"
+                                                    data-name="{{ $branch->name }}"
+                                                    data-email="{{ $branch->email }}"
+                                                    data-phone="{{ $branch->phone }}"
+                                                    data-address="{{ $branch->address }}"
+                                                    {{ (string) old('branch', Auth::user()->branch_id) === (string) $branch->erp_branch_id ? 'selected' : '' }}>
+                                                    {{ $branch->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
                                     </div>
 
                                     <div class="col-md-6 mb-3">
@@ -335,6 +345,20 @@
                     }
                 });
             });
+
+            function fillBranchInfo() {
+                const selected = $('#branch option:selected');
+
+                $('#branch_email').val(selected.data('email') || '');
+                $('#branch_phone').val(selected.data('phone') || '');
+                $('#branch_address').val(selected.data('address') || '');
+            }
+
+            $('#branch').on('change', fillBranchInfo);
+
+            if ($('#branch').val()) {
+                fillBranchInfo();
+            }
 
             // Update Profile Information
             $('#profileInfoForm').on('submit', function(e) {

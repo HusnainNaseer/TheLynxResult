@@ -177,10 +177,15 @@
                             <span class="badge bg-primary ms-2">{{ $totalInDb }}</span>
                         </h6>
                         <small class="text-muted">
-                            {{ $totalInDb > 0 ? 'Data loaded from local database.' : 'No class-sections synced yet. Click the button to import.' }}
+                            @role('Admin')
+                                {{ $totalInDb > 0 ? 'Data loaded from local database.' : 'No class-sections synced yet. Click the button to import.' }}
+                            @else
+                                Class sections loaded from your branch records.
+                            @endrole
                         </small>
                     </div>
 
+                    @role('Admin')
                     <div class="d-flex gap-2">
                         @if ($totalInDb === 0)
                             <form action="{{ route('class-sections.sync') }}" method="POST">
@@ -199,6 +204,7 @@
                             </form>
                         @endif
                     </div>
+                    @endrole
 
                 </div>
             </div>

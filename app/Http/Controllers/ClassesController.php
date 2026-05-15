@@ -5,7 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\Classes;
 use App\Models\Session;
-use Illuminate\Support\Facades\Http;
+use App\Support\BranchScope;
+use App\Support\ErpHttp;
 use Illuminate\Support\Facades\Log;
 
 class ClassesController extends Controller
@@ -15,6 +16,7 @@ class ClassesController extends Controller
         $activeSession = Session::active()->first();
         $classQuery = Classes::query()
             ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
+        BranchScope::apply($classQuery);
 
         $totalInDb = (clone $classQuery)->count();
 
@@ -31,11 +33,15 @@ class ClassesController extends Controller
                 'name' => $branch->name,
             ]);
 
-        return view('classes.index', compact('totalInDb', 'branches'));
+        $allClasses = (clone $classQuery)->orderBy('name')->get();
+
+        return view('classes.index', compact('totalInDb', 'branches', 'allClasses'));
     }
 
     public function sync()
     {
+        abort_unless(auth()->user()?->hasRole('Admin'), 403);
+
         try {
             $activeSession = Session::active()->first();
 
@@ -45,7 +51,7 @@ class ClassesController extends Controller
 
             $branchStats = $this->syncBranchesFromErp();
 
-            $response = Http::timeout(15)->get(env('API_URL') . 'get-classes');
+            $response = ErpHttp::get('get-classes', 15);
 
             if (!$response->successful()) {
                 return back()->with('error', 'Failed to reach ERP API. Status: ' . $response->status());
@@ -97,7 +103,9 @@ class ClassesController extends Controller
 
     private function syncBranchesFromErp(): array
     {
-        $response = Http::timeout(15)->get(env('API_URL') . 'get-branches');
+        abort_unless(auth()->user()?->hasRole('Admin'), 403);
+
+        $response = ErpHttp::get('get-branches', 15);
 
         if (!$response->successful()) {
             Log::error('Branch sync failed: ' . $response->body());

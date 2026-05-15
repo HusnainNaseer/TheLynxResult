@@ -11,10 +11,12 @@
         <div class="container-fluid">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                 <h4 class="mb-0">Result List</h4>
+                @hasanyrole('Admin|Coordinator')
                 <form method="POST" action="{{ route('results.sync-students', request()->query()) }}">
                     @csrf
                     <button type="submit" class="btn btn-primary btn-sm">Sync Students</button>
                 </form>
+                @endhasanyrole
             </div>
 
             @if (session('error'))
@@ -77,6 +79,19 @@
                                 </div>
                             </div>
 
+                            <div class="col-md-3">
+                                <label class="form-label" for="statusFilter">Status</label>
+                                <select id="statusFilter" name="status" class="form-select">
+                                    <option value="">All Statuses</option>
+                                    <option value="pending" {{ $selectedStatus === 'pending' ? 'selected' : '' }}>Pending</option>
+                                    <option value="draft" {{ $selectedStatus === 'draft' ? 'selected' : '' }}>Draft</option>
+                                    <option value="forwarded" {{ $selectedStatus === 'forwarded' ? 'selected' : '' }}>Forwarded</option>
+                                    <option value="forwarded_to_class_teacher" {{ $selectedStatus === 'forwarded_to_class_teacher' ? 'selected' : '' }}>Forwarded to Class Teacher</option>
+                                    <option value="forwarded_to_coordinator" {{ $selectedStatus === 'forwarded_to_coordinator' ? 'selected' : '' }}>Forwarded to Coordinator</option>
+                                    <option value="approved" {{ $selectedStatus === 'approved' ? 'selected' : '' }}>Approved</option>
+                                </select>
+                            </div>
+
                             <div class="col-md-12">
                                 <a href="{{ route('students.result') }}" class="btn btn-light btn-sm">Reset Filters</a>
                             </div>
@@ -122,7 +137,7 @@
                                     <th>Status</th>
                                     <th>Grade</th>
                                     <th>Percentage</th>
-                                    <th>Actions</th>
+                                    <th style="width: 100px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="studentRows">
@@ -145,6 +160,7 @@
             const branch = document.getElementById('branchFilter');
             const classSelect = document.getElementById('classFilter');
             const section = document.getElementById('sectionFilter');
+            const status = document.getElementById('statusFilter');
             const search = document.getElementById('search');
             const rows = document.getElementById('studentRows');
             const pagination = document.getElementById('paginationLinks');
@@ -215,6 +231,10 @@
             });
 
             section.addEventListener('change', function() {
+                fetchResults();
+            });
+
+            status.addEventListener('change', function() {
                 fetchResults();
             });
 

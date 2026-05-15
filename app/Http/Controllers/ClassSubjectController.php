@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Classes;
 use App\Models\ClassSubject;
 use App\Models\Session;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -16,6 +17,7 @@ class ClassSubjectController extends Controller
         $activeSession = Session::active()->first();
         $classQuery = Classes::query()
             ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
+        BranchScope::apply($classQuery);
 
         $usedBranchIds = (clone $classQuery)->select('erp_branch_id')
             ->distinct()
@@ -34,12 +36,14 @@ class ClassSubjectController extends Controller
 
         $subjects = DB::table('subject_wise_marks')
             ->select('id', 'subject_name')
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
             ->distinct()
             ->orderBy('subject_name')
             ->get();
 
         $assignedSubjects = ClassSubject::with('class')
             ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+            ->when(BranchScope::coordinatorBranchId(), fn($query, $branchId) => $query->where('branch_id', $branchId))
             ->get()
             ->groupBy('class_id');
 
@@ -82,6 +86,31 @@ class ClassSubjectController extends Controller
                 ->with('error', 'Please activate a session before assigning class subjects.');
         }
 
+        BranchScope::abortIfCoordinatorOutside($validated['branch_id']);
+
+        $class = Classes::where('id', $validated['class_id'])
+            ->where('erp_branch_id', $validated['branch_id'])
+            ->where('session_id', $activeSession->id)
+            ->first();
+
+        if (!$class) {
+            return back()
+                ->withInput()
+                ->with('error', 'Selected class does not belong to the active session.');
+        }
+
+        $validSubjectIds = DB::table('subject_wise_marks')
+            ->where('session_id', $activeSession->id)
+            ->whereIn('id', $subjectIds)
+            ->pluck('id')
+            ->map(fn($subjectId) => (int) $subjectId);
+
+        if ($validSubjectIds->count() !== $subjectIds->count()) {
+            return back()
+                ->withInput()
+                ->with('error', 'One or more selected subjects do not belong to the active session.');
+        }
+
         $alreadyAssigned = ClassSubject::where('class_id', $validated['class_id'])
             ->where('session_id', $activeSession->id)
             ->whereIn('subject_id', $subjectIds)
@@ -113,8 +142,17 @@ class ClassSubjectController extends Controller
     public function destroy($classId)
     {
         $activeSession = Session::active()->first();
+        $class = Classes::where('id', $classId)
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
+        BranchScope::apply($class);
+
+        if (!$class->exists()) {
+            return back()->with('error', 'Selected class was not found for your branch.');
+        }
+
         $deleted = ClassSubject::where('class_id', $classId)
             ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+            ->when(BranchScope::coordinatorBranchId(), fn($query, $branchId) => $query->where('branch_id', $branchId))
             ->delete();
 
         if (!$deleted) {

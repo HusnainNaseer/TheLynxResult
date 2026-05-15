@@ -7,7 +7,8 @@ use App\Models\Classes;
 use App\Models\ClassSection;
 use App\Models\Section;
 use App\Models\Session;
-use Illuminate\Support\Facades\Http;
+use App\Support\BranchScope;
+use App\Support\ErpHttp;
 use Illuminate\Support\Facades\Log;
 
 class ClassSectionController extends Controller
@@ -19,6 +20,11 @@ class ClassSectionController extends Controller
             ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
         $classQuery = Classes::query()
             ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
+        BranchScope::apply($classQuery);
+
+        if ($branchId = BranchScope::coordinatorBranchId()) {
+            $classSectionQuery->whereHas('class', fn($query) => $query->where('erp_branch_id', $branchId));
+        }
 
         $totalInDb = (clone $classSectionQuery)->count();
         $usedBranchIds = (clone $classQuery)->select('erp_branch_id')
@@ -44,6 +50,8 @@ class ClassSectionController extends Controller
 
     public function sync()
     {
+        abort_unless(auth()->user()?->hasRole('Admin'), 403);
+
         try {
             $activeSession = Session::active()->first();
 
@@ -51,7 +59,7 @@ class ClassSectionController extends Controller
                 return back()->with('error', 'Please activate a session before syncing class sections.');
             }
 
-            $response = Http::timeout(15)->get(env('API_URL') . 'get-class-section');
+            $response = ErpHttp::get('get-class-section', 15);
 
             if (!$response->successful()) {
                 return back()->with('error', 'Failed to reach ERP API. Status: ' . $response->status());

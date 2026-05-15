@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use App\Models\Session;
+use App\Services\ErpAuthService;
 use App\Services\StudentSyncService;
 
 class AuthenticatedSessionController extends Controller
@@ -26,7 +27,11 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request, StudentSyncService $studentSyncService): RedirectResponse
+    public function store(
+        LoginRequest $request,
+        ErpAuthService $erpAuthService,
+        StudentSyncService $studentSyncService
+    ): RedirectResponse
     {
         $request->authenticate();
 
@@ -54,6 +59,26 @@ class AuthenticatedSessionController extends Controller
             ])->onlyInput('email');
         }
 
+        if ($userRoles->contains('admin') || $userRoles->contains('coordinator')) {
+            try {
+                $erpLogin = $erpAuthService->login($user);
+            } catch (\Throwable $e) {
+                Log::error('ERP login failed for local user ' . $user->id . ': ' . $e->getMessage());
+                $erpLogin = [
+                    'ok' => false,
+                    'message' => 'ERP admin token login failed. Please try again or check the ERP connection.',
+                ];
+            }
+
+            if (!$erpLogin['ok']) {
+                Auth::logout();
+
+                return back()->withErrors([
+                    'email' => $erpLogin['message'],
+                ])->onlyInput('email');
+            }
+        }
+
         $request->session()->regenerate();
 
         $activeSession = Session::active()->first();
@@ -70,10 +95,12 @@ class AuthenticatedSessionController extends Controller
             $user->forceFill($sessionData)->save();
         }
 
-        try {
-            $studentSyncService->syncForActiveSession();
-        } catch (\Throwable $e) {
-            Log::error('Student sync on login failed for user ' . $user->id . ': ' . $e->getMessage());
+        if ($userRoles->contains('admin')) {
+            try {
+                // $studentSyncService->syncForActiveSession();
+            } catch (\Throwable $e) {
+                Log::error('Student sync on admin login failed for user ' . $user->id . ': ' . $e->getMessage());
+            }
         }
 
         return redirect()->intended(route('dashboard', absolute: false));

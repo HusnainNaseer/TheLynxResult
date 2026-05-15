@@ -10,8 +10,9 @@ class SubjectWiseMarks extends Model
         'subject_name',
         'session_id',
         'erp_session_id',
-        'term_one_mark',
-        'term_two_mark',
+        'branch_id',
+        'term_one_marks',
+        'term_two_marks',
         'created_by'
     ];
     public function session()

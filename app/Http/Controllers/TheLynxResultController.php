@@ -13,6 +13,7 @@ use App\Models\ClassSection;
 use App\Models\ClassSubject;
 use App\Models\Section;
 use App\Models\TeacherSubjectAssignment;
+use App\Services\ErpAuthService;
 use App\Services\StudentSyncService;
 // use App\Models\http\Resources\BranchResource;
 // use Illuminate\Http\Request;
@@ -23,10 +24,31 @@ use Illuminate\Support\Facades\Log;
 
 class TheLynxResultController extends Controller
 {
-    public function syncStudents(Request $request, StudentSyncService $studentSyncService)
+    public function syncStudents(
+        Request $request,
+        StudentSyncService $studentSyncService,
+        ErpAuthService $erpAuthService
+    )
     {
         try {
-            $sync = $studentSyncService->syncForActiveSession();
+            $user = auth()->user();
+            $branchId = $user?->hasRole('Coordinator') ? (string) $user->branch_id : null;
+
+            if ($user?->hasRole('Coordinator') && !$branchId) {
+                return redirect()
+                    ->route('students.result', $request->except('_token'))
+                    ->with('error', 'Please set your branch before syncing students.');
+            }
+
+            $erpLogin = $erpAuthService->login($user);
+
+            if (!$erpLogin['ok']) {
+                return redirect()
+                    ->route('students.result', $request->except('_token'))
+                    ->with('error', $erpLogin['message']);
+            }
+
+            $sync = $studentSyncService->syncForActiveSession($branchId);
         } catch (\Throwable $e) {
             Log::error('Student sync failed from result list: ' . $e->getMessage());
 
@@ -66,6 +88,7 @@ class TheLynxResultController extends Controller
         $selectedBranchId = $request->get('branch_id');
         $selectedClassId = $request->get('class_id');
         $selectedSectionId = $request->get('section_id');
+        $selectedStatus = $request->get('status');
         $search = $request->get('search');
 
         $students = $this->accessibleStudentQuery($user, [
@@ -74,6 +97,7 @@ class TheLynxResultController extends Controller
             'section_id' => $selectedSectionId,
             'search' => $search,
         ])
+            ->when($selectedStatus, fn($query) => $this->applyResultStatusFilter($query, $selectedStatus, $activeSession))
             ->with(['result' => fn($query) => $query->where('session_id', $activeSession?->id)->with('session')])
             ->orderBy('stdname')
             ->paginate(15)
@@ -116,9 +140,70 @@ class TheLynxResultController extends Controller
             'selectedBranchId',
             'selectedClassId',
             'selectedSectionId',
+            'selectedStatus',
             'search',
             'canManageResults',
             'canUseForwardControls'
+        ));
+    }
+
+    public function coordinatorApprovals(Request $request)
+    {
+        return $this->resultWorkflowList($request, 'forwarded_to_coordinator', 'Coordinator Approval List');
+    }
+
+    public function approvedResults(Request $request)
+    {
+        return $this->resultWorkflowList($request, 'coordinator_approved', 'Approved Results');
+    }
+
+    private function resultWorkflowList(Request $request, string $status, string $title)
+    {
+        $user = auth()->user();
+        $activeSession = Session::active()->first();
+        $selectedBranchId = $request->get('branch_id');
+        $selectedClassId = $request->get('class_id');
+        $selectedSectionId = $request->get('section_id');
+        $search = $request->get('search');
+
+        $results = StudentResult::with(['student', 'session'])
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id), fn($query) => $query->whereRaw('1 = 0'))
+            ->where('workflow_status', $status)
+            ->when($user->hasRole('Coordinator') && !$user->hasRole('Admin'), fn($query) => $query->where('branch_id', $user->branch_id))
+            ->when($selectedBranchId, fn($query) => $query->where('branch_id', $selectedBranchId))
+            ->when($selectedClassId, fn($query) => $query->where('class_id', $selectedClassId))
+            ->when($selectedSectionId, fn($query) => $query->where('section_id', $selectedSectionId))
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($searchQuery) use ($search) {
+                    $searchQuery->where('name', 'like', "%{$search}%")
+                        ->orWhere('rollno', 'like', "%{$search}%")
+                        ->orWhereHas('student', function ($studentQuery) use ($search) {
+                            $studentQuery->where('fathername', 'like', "%{$search}%")
+                                ->orWhere('phone_no', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->latest()
+            ->paginate(15)
+            ->appends($request->query());
+
+        $this->decorateResultRows($results, $user);
+
+        $branches = $this->resultBranches($user);
+        $classes = $selectedBranchId ? $this->resultClassesFor($user, $selectedBranchId) : collect();
+        $sections = ($selectedBranchId && $selectedClassId) ? $this->resultSectionsFor($user, $selectedBranchId, $selectedClassId) : collect();
+
+        return view('results.workflow_list', compact(
+            'results',
+            'title',
+            'status',
+            'branches',
+            'classes',
+            'sections',
+            'selectedBranchId',
+            'selectedClassId',
+            'selectedSectionId',
+            'search'
         ));
     }
 
@@ -250,11 +335,56 @@ class TheLynxResultController extends Controller
             abort(403, 'Unauthorized access');
         }
 
+        if ($request->action === 'forward_coordinator') {
+            $missingForwardFields = $this->missingCoordinatorForwardResultFields($result);
+
+            if ($missingForwardFields) {
+                return back()->with(
+                    'error',
+                    'Please fill these fields before forwarding to Coordinator: ' . implode(', ', $missingForwardFields) . '.'
+                );
+            }
+
+            $missingSubjects = $this->missingStoredFinalizeSubjects($result);
+
+            if ($missingSubjects) {
+                return back()->with(
+                    'error',
+                    'Please enter Term One marks for all subjects before forwarding to Coordinator. Missing: ' . implode(', ', $missingSubjects) . '.'
+                );
+            }
+        }
+
         if (!$this->applyForwardAction($result, $user, $request->action)) {
             return back()->with('error', 'This result cannot be forwarded from your current role or status.');
         }
 
         return back()->with('success', 'Result forwarded successfully.');
+    }
+
+    public function coordinatorApprove($id)
+    {
+        $result = StudentResult::findOrFail($id);
+        $user = auth()->user();
+
+        if (!$user->hasRole('Coordinator') || !$this->canAccessResultSection($user, $result->branch_id, $result->class_id, $result->section_id)) {
+            abort(403, 'Unauthorized access');
+        }
+
+        $missingForwardFields = $this->missingCoordinatorForwardResultFields($result);
+
+        if ($missingForwardFields) {
+            return back()->with(
+                'error',
+                'Please fill these fields before approving: ' . implode(', ', $missingForwardFields) . '.'
+            );
+        }
+
+        if (!$this->approveCoordinatorResult($result, $user)) {
+            return back()->with('error', 'Only results forwarded to Coordinator can be approved.');
+        }
+
+        return back()->with('success', 'Result approved successfully.');
     }
 
     public function bulkForward(Request $request)
@@ -267,9 +397,21 @@ class TheLynxResultController extends Controller
 
         $user = auth()->user();
         $forwarded = 0;
+        $blockedMissingFields = 0;
+        $blockedMissingSubjects = 0;
 
-        StudentResult::whereIn('id', $request->result_ids)->get()->each(function ($result) use ($user, $request, &$forwarded) {
+        StudentResult::whereIn('id', $request->result_ids)->get()->each(function ($result) use ($user, $request, &$forwarded, &$blockedMissingFields, &$blockedMissingSubjects) {
             if (!$this->canAccessResultSection($user, $result->branch_id, $result->class_id, $result->section_id)) {
+                return;
+            }
+
+            if ($request->action === 'forward_coordinator' && $this->missingCoordinatorForwardResultFields($result)) {
+                $blockedMissingFields++;
+                return;
+            }
+
+            if ($request->action === 'forward_coordinator' && $this->missingStoredFinalizeSubjects($result)) {
+                $blockedMissingSubjects++;
                 return;
             }
 
@@ -277,6 +419,14 @@ class TheLynxResultController extends Controller
                 $forwarded++;
             }
         });
+
+        if ($request->action === 'forward_coordinator' && $blockedMissingFields > 0) {
+            return back()->with('error', $blockedMissingFields . ' selected result(s) need Promoted To, Term One Working Days, Term Two Working Days, and Remarks before forwarding to Coordinator.');
+        }
+
+        if ($request->action === 'forward_coordinator' && $blockedMissingSubjects > 0) {
+            return back()->with('error', $blockedMissingSubjects . ' selected result(s) need Term One marks for all subjects before forwarding to Coordinator.');
+        }
 
         return back()->with($forwarded ? 'success' : 'error', $forwarded
             ? $forwarded . ' result(s) forwarded successfully.'
@@ -342,7 +492,7 @@ class TheLynxResultController extends Controller
                 ], 422);
             }
 
-            $marksToSave = $this->prepareSubmittedMarks($request->subjects ?? [], $allowedSubjectIds);
+            $marksToSave = $this->prepareSubmittedMarks($request->subjects ?? [], $allowedSubjectIds, $activeSession->id);
 
             if ($marksToSave->isEmpty()) {
                 return response()->json([
@@ -353,6 +503,21 @@ class TheLynxResultController extends Controller
 
             $canEditDetails = $this->canEditResultDetails($user, $student->owned_by, $class->id, $section->id);
             $submitAction = $request->input('submit_action', 'save');
+
+            if ($submitAction === 'forward_coordinator') {
+                $missingSubjects = $this->missingSubmittedFinalizeSubjects(
+                    $request,
+                    $this->finalizationSubjectsFor($activeSession->id, $class->id)
+                );
+
+                if ($missingSubjects) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Please enter Term One marks for all subjects before forwarding to Coordinator. Missing: ' . implode(', ', $missingSubjects) . '.',
+                    ], 422);
+                }
+            }
+
             $t1Working = $canEditDetails ? floatval($request->input('working_days.term_one', 0)) : 0;
             $t2Working = $canEditDetails ? floatval($request->input('working_days.term_two', 0)) : 0;
 
@@ -449,13 +614,40 @@ class TheLynxResultController extends Controller
                 ], 422);
             }
 
-            $marksToSave = $this->prepareSubmittedMarks($request->subjects ?? [], $allowedSubjectIds);
+            $marksToSave = $this->prepareSubmittedMarks($request->subjects ?? [], $allowedSubjectIds, $studentResult->session_id);
 
             if ($marksToSave->isEmpty()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Please add at least one subject with marks.',
                 ], 422);
+            }
+
+            $submitAction = $request->input('submit_action', 'save');
+
+            if (in_array($submitAction, ['forward_coordinator', 'coordinator_approve'], true)) {
+                $missingForwardFields = $this->missingCoordinatorForwardFields($request);
+
+                if ($missingForwardFields) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Please fill these fields before ' . ($submitAction === 'coordinator_approve' ? 'approving' : 'forwarding to Coordinator') . ': ' . implode(', ', $missingForwardFields) . '.',
+                    ], 422);
+                }
+            }
+
+            if ($submitAction === 'forward_coordinator') {
+                $missingSubjects = $this->missingSubmittedFinalizeSubjects(
+                    $request,
+                    $this->finalizationSubjectsFor($studentResult->session_id, $studentResult->class_id)
+                );
+
+                if ($missingSubjects) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Please enter Term One marks for all subjects before forwarding to Coordinator. Missing: ' . implode(', ', $missingSubjects) . '.',
+                    ], 422);
+                }
             }
 
             if ($this->canEditResultDetails($user, $studentResult->branch_id, $studentResult->class_id, $studentResult->section_id)) {
@@ -473,15 +665,21 @@ class TheLynxResultController extends Controller
 
             $this->saveSubmittedMarks($studentResult, $marksToSave);
             $this->recalculateStudentResult($studentResult);
+            $studentResult->forceFill(['edit_by' => $user->id])->save();
 
-            $submitAction = $request->input('submit_action', 'save');
-            if (in_array($submitAction, ['forward_class_teacher', 'forward_coordinator'], true)) {
-                if (!$this->applyForwardAction($studentResult, $user, $submitAction)) {
+            if (in_array($submitAction, ['forward_class_teacher', 'forward_coordinator', 'coordinator_approve'], true)) {
+                $workflowUpdated = $submitAction === 'coordinator_approve'
+                    ? $this->approveCoordinatorResult($studentResult, $user)
+                    : $this->applyForwardAction($studentResult, $user, $submitAction);
+
+                if (!$workflowUpdated) {
                     DB::rollBack();
 
                     return response()->json([
                         'success' => false,
-                        'message' => $this->forwardFailureMessage($submitAction),
+                        'message' => $submitAction === 'coordinator_approve'
+                            ? 'Result was saved, but could not be approved. Only Coordinator can approve a result forwarded to Coordinator.'
+                            : $this->forwardFailureMessage($submitAction),
                     ], 422);
                 }
             }
@@ -507,12 +705,12 @@ class TheLynxResultController extends Controller
         $student = StudentResult::findOrFail($id);
         $user = auth()->user();
 
-        if (!$user->hasRole('Admin') && !$user->hasRole('Coordinator')) {
+        if (!$user->hasRole('Admin')) {
             abort(403, 'Unauthorized access');
         }
 
-        if ($user->hasRole('Coordinator') && !$this->canAccessResultSection($user, $student->branch_id, $student->class_id, $student->section_id)) {
-            abort(403, 'Unauthorized access');
+        if ($student->workflow_status === 'coordinator_approved') {
+            abort(403, 'Approved results cannot be deleted.');
         }
 
         StudentMarks::where('result_id', $student->id)->delete();
@@ -546,6 +744,10 @@ class TheLynxResultController extends Controller
 
         if (!$student->student || !$this->canAccessResultSection($user, $student->branch_id, $student->class_id, $student->section_id)) {
             abort(403, 'Unauthorized access');
+        }
+
+        if (!$this->canEditResult($user, $student)) {
+            abort(403, 'This result has already been forwarded and is locked for your role.');
         }
 
         $context = $this->buildResultFormContext($student->student, $student, $user);
@@ -793,6 +995,28 @@ class TheLynxResultController extends Controller
             ->exists();
     }
 
+    private function applyResultStatusFilter($query, ?string $status, ?Session $activeSession)
+    {
+        if (!$status || $status === 'all' || !$activeSession) {
+            return $query;
+        }
+
+        if ($status === 'pending') {
+            return $query->whereNotIn('students.id', StudentResult::select('student_id')
+                ->where('session_id', $activeSession->id));
+        }
+
+        $statuses = match ($status) {
+            'forwarded' => ['forwarded_to_class_teacher', 'forwarded_to_coordinator'],
+            'approved' => ['coordinator_approved'],
+            default => [$status],
+        };
+
+        return $query->whereIn('students.id', StudentResult::select('student_id')
+            ->where('session_id', $activeSession->id)
+            ->whereIn('workflow_status', $statuses));
+    }
+
     private function accessibleStudentQuery(User $user, array $filters = [])
     {
         $activeSession = Session::active()->first();
@@ -937,9 +1161,48 @@ class TheLynxResultController extends Controller
                 && $student->result
                 && $isClassTeacher
                 && in_array($student->result->workflow_status, ['draft', 'forwarded_to_class_teacher'], true);
+            $student->can_edit_result = $student->result
+                ? $this->canEditResult($user, $student->result)
+                : true;
+            $student->can_delete_result = $student->result
+                && $student->result->workflow_status !== 'coordinator_approved'
+                && $user->hasRole('Admin');
+            $student->can_approve_result = $student->result
+                && $user->hasRole('Coordinator')
+                && !$user->hasRole('Admin')
+                && $student->result->workflow_status === 'forwarded_to_coordinator'
+                && $this->canAccessResultSection($user, $student->result->branch_id, $student->result->class_id, $student->result->section_id);
             $student->workflow_status_label = $this->workflowStatusLabel($student->result);
 
             return $student;
+        }));
+    }
+
+    private function decorateResultRows($results, User $user): void
+    {
+        $collection = $results->getCollection();
+
+        $branchMap = Branch::whereIn('erp_branch_id', $collection->pluck('branch_id')->filter()->unique())
+            ->pluck('name', 'erp_branch_id');
+        $classMap = Classes::whereIn('id', $collection->pluck('class_id')->filter()->unique())
+            ->pluck('name', 'id');
+        $sectionMap = Section::whereIn('id', $collection->pluck('section_id')->filter()->unique())
+            ->pluck('name', 'id');
+
+        $results->setCollection($collection->map(function ($result) use ($branchMap, $classMap, $sectionMap, $user) {
+            $result->branch_name = $branchMap[$result->branch_id] ?? ('Branch #' . $result->branch_id);
+            $result->class_name = $classMap[$result->class_id] ?? ($result->class ?: 'N/A');
+            $result->section_display = $sectionMap[$result->section_id] ?? ($result->section ?: 'N/A');
+            $result->workflow_status_label = $this->workflowStatusLabel($result);
+            $result->can_approve_result = $user->hasRole('Coordinator')
+                && !$user->hasRole('Admin')
+                && $result->workflow_status === 'forwarded_to_coordinator'
+                && $this->canAccessResultSection($user, $result->branch_id, $result->class_id, $result->section_id);
+            $result->can_edit_result = $this->canEditResult($user, $result);
+            $result->can_delete_result = $result->workflow_status !== 'coordinator_approved'
+                && $user->hasRole('Admin');
+
+            return $result;
         }));
     }
 
@@ -1001,6 +1264,7 @@ class TheLynxResultController extends Controller
             'canEditForm' => $canEditForm,
             'canForwardToClassTeacher' => $isTeacherOnly && $canEditForm && !$isClassTeacher && (!$result || $result->workflow_status === 'draft'),
             'canForwardToCoordinator' => $isTeacherOnly && $canEditForm && $isClassTeacher && (!$result || in_array($result->workflow_status, ['draft', 'forwarded_to_class_teacher'], true)),
+            'canCoordinatorApprove' => $user->hasRole('Coordinator') && !$user->hasRole('Admin') && $result?->workflow_status === 'forwarded_to_coordinator',
             'workflowStatusLabel' => $this->workflowStatusLabel($result),
             'formAction' => $result ? route('results.update', $result->id) : route('student_result.store'),
         ];
@@ -1008,6 +1272,10 @@ class TheLynxResultController extends Controller
 
     private function canEditResult(User $user, StudentResult $result): bool
     {
+        if ($result->workflow_status === 'coordinator_approved') {
+            return false;
+        }
+
         if ($user->hasRole('Admin') || $user->hasRole('Coordinator')) {
             return true;
         }
@@ -1038,6 +1306,7 @@ class TheLynxResultController extends Controller
                 'workflow_status' => 'forwarded_to_class_teacher',
                 'subject_finalized_by' => $user->id,
                 'subject_finalized_at' => now(),
+                'edit_by' => $user->id,
             ]);
 
             return true;
@@ -1048,10 +1317,15 @@ class TheLynxResultController extends Controller
                 return false;
             }
 
+            if ($this->missingStoredFinalizeSubjects($result)) {
+                return false;
+            }
+
             $result->update([
                 'workflow_status' => 'forwarded_to_coordinator',
                 'class_teacher_finalized_by' => $user->id,
                 'class_teacher_finalized_at' => now(),
+                'edit_by' => $user->id,
             ]);
 
             return true;
@@ -1060,11 +1334,35 @@ class TheLynxResultController extends Controller
         return false;
     }
 
+    private function approveCoordinatorResult(StudentResult $result, User $user): bool
+    {
+        if (!$user->hasRole('Coordinator') || $user->hasRole('Admin')) {
+            return false;
+        }
+
+        if ($result->workflow_status !== 'forwarded_to_coordinator') {
+            return false;
+        }
+
+        if (!$this->canAccessResultSection($user, $result->branch_id, $result->class_id, $result->section_id)) {
+            return false;
+        }
+
+        $result->update([
+            'workflow_status' => 'coordinator_approved',
+            'coordinator_approved_at' => now(),
+            'edit_by' => $user->id,
+        ]);
+
+        return true;
+    }
+
     private function workflowStatusLabel(?StudentResult $result): array
     {
         return match ($result?->workflow_status) {
             'forwarded_to_class_teacher' => ['text' => 'Forwarded to Class Teacher', 'class' => 'bg-info'],
             'forwarded_to_coordinator' => ['text' => 'Forwarded to Coordinator', 'class' => 'bg-primary'],
+            'coordinator_approved' => ['text' => 'Coordinator Approved', 'class' => 'bg-success'],
             default => ['text' => $result ? 'Draft' : 'Not Created', 'class' => $result ? 'bg-secondary' : 'bg-warning text-dark'],
         };
     }
@@ -1074,6 +1372,98 @@ class TheLynxResultController extends Controller
         return $action === 'forward_coordinator'
             ? 'Result was saved, but could not be forwarded. Only the all-subject class teacher can forward this result to coordinator, and it must not already be finalized.'
             : 'Result was saved, but could not be forwarded. Only a subject teacher can forward a draft result to the class teacher.';
+    }
+
+    private function missingCoordinatorForwardFields(Request $request): array
+    {
+        $fields = [];
+
+        if (blank($request->promoted_class)) {
+            $fields[] = 'Promoted To';
+        }
+
+        if (blank($request->input('working_days.term_one'))) {
+            $fields[] = 'Term One Working Days';
+        }
+
+        if (blank($request->input('working_days.term_two'))) {
+            $fields[] = 'Term Two Working Days';
+        }
+
+        if (blank($request->remarks)) {
+            $fields[] = 'Remarks';
+        }
+
+        return $fields;
+    }
+
+    private function missingCoordinatorForwardResultFields(StudentResult $result): array
+    {
+        $fields = [];
+
+        if (blank($result->promoted_class)) {
+            $fields[] = 'Promoted To';
+        }
+
+        if (blank($result->t1_working_days)) {
+            $fields[] = 'Term One Working Days';
+        }
+
+        if (blank($result->t2_working_days)) {
+            $fields[] = 'Term Two Working Days';
+        }
+
+        if (blank($result->remarks)) {
+            $fields[] = 'Remarks';
+        }
+
+        return $fields;
+    }
+
+    private function finalizationSubjectsFor(?int $sessionId, $classId)
+    {
+        return ClassSubject::where('class_subjects.class_id', $classId)
+            ->when($sessionId, fn($query) => $query->where('class_subjects.session_id', $sessionId))
+            ->join('subject_wise_marks', 'class_subjects.subject_id', '=', 'subject_wise_marks.id')
+            ->select('subject_wise_marks.id', 'subject_wise_marks.subject_name')
+            ->distinct()
+            ->orderBy('subject_wise_marks.subject_name')
+            ->get();
+    }
+
+    private function missingSubmittedFinalizeSubjects(Request $request, $requiredSubjects): array
+    {
+        $submitted = collect($request->subjects ?? [])
+            ->filter(fn($row) => !empty($row['subject_id']))
+            ->keyBy(fn($row) => (int) $row['subject_id']);
+
+        return collect($requiredSubjects)
+            ->filter(function ($subject) use ($submitted) {
+                $row = $submitted->get((int) $subject->id);
+
+                return !$row
+                    || blank($row['term_one_mark'] ?? null);
+            })
+            ->pluck('subject_name')
+            ->values()
+            ->all();
+    }
+
+    private function missingStoredFinalizeSubjects(StudentResult $result): array
+    {
+        $requiredSubjects = $this->finalizationSubjectsFor($result->session_id, $result->class_id);
+        $marks = $result->marks()->get()->keyBy(fn($mark) => (int) $mark->subject_id);
+
+        return collect($requiredSubjects)
+            ->filter(function ($subject) use ($marks) {
+                $mark = $marks->get((int) $subject->id);
+
+                return !$mark
+                    || $mark->term_one_mark === null;
+            })
+            ->pluck('subject_name')
+            ->values()
+            ->all();
     }
 
     private function canEditResultDetails(User $user, $branchId, $classId, $sectionId): bool
@@ -1136,20 +1526,22 @@ class TheLynxResultController extends Controller
             ->values();
     }
 
-    private function prepareSubmittedMarks(array $subjects, $allowedSubjectIds)
+    private function prepareSubmittedMarks(array $subjects, $allowedSubjectIds, ?int $sessionId)
     {
         $allowed = collect($allowedSubjectIds)->map(fn($id) => (int) $id);
 
         return collect($subjects)
             ->filter(fn($row) => !empty($row['subject_id']) && $allowed->contains((int) $row['subject_id']))
             ->filter(fn($row) => ($row['term_one_mark'] ?? '') !== '' || ($row['term_two_mark'] ?? '') !== '')
-            ->map(fn($row) => $this->buildMarkPayload($row))
+            ->map(fn($row) => $this->buildMarkPayload($row, $sessionId))
             ->values();
     }
 
-    private function buildMarkPayload(array $row): array
+    private function buildMarkPayload(array $row, ?int $sessionId): array
     {
-        $subject = SubjectWiseMarks::findOrFail($row['subject_id']);
+        $subject = SubjectWiseMarks::where('id', $row['subject_id'])
+            ->when($sessionId, fn($query) => $query->where('session_id', $sessionId))
+            ->firstOrFail();
         $termOneMark = floatval($row['term_one_mark'] ?? 0);
         $termTwoMark = floatval($row['term_two_mark'] ?? 0);
         $termOneTotal = floatval($subject->term_one_marks ?? 100);
@@ -1181,7 +1573,10 @@ class TheLynxResultController extends Controller
                     'result_id' => $result->id,
                     'subject_id' => $markData['subject_id'],
                 ],
-                $markData
+                array_merge($markData, [
+                    'session_id' => $result->session_id,
+                    'erp_session_id' => $result->erp_session_id,
+                ])
             );
         }
     }

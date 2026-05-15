@@ -6,51 +6,47 @@ use App\Models\User;
 use App\Models\Session;
 use App\Models\Branch;
 use App\Models\Classes;
+use App\Support\BranchScope;
+use App\Support\ErpHttp;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\Password;
 use Spatie\Permission\Models\Role;
 
 class TeachersController extends Controller
 {
-    /**
-     * Fetch active branches from the ERP API.
-     */
-    private function fetchBranchesFromERP(): array
+    private function localBranches()
     {
-        try {
-            $erpUrl = rtrim(env('ERP_API_URL', ''), '/');
+        $query = Branch::query()
+            ->orderBy('name');
+        BranchScope::apply($query, 'erp_branch_id');
 
-            if (empty($erpUrl)) {
-                Log::warning('ERP_API_URL is not configured in .env');
-                return [];
-            }
-
-            $response = Http::timeout(10)->get("{$erpUrl}/api/get-branches");
-
-            if ($response->successful()) {
-                $body = $response->json();
-                if (!empty($body['status']) && !empty($body['data'])) {
-                    return $body['data'];
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error('ERP branch fetch failed: ' . $e->getMessage());
-        }
-
-        return [];
+        return $query
+            ->get()
+            ->map(fn($branch) => [
+                'id' => $branch->erp_branch_id,
+                'name' => $branch->name,
+                'email' => $branch->email,
+                'phone' => $branch->phone,
+                'address' => $branch->address,
+            ])
+            ->values();
     }
 
     public function index()
     {
-        $users = User::whereHas('roles', function ($q) {
-            $q->whereIn('name', ['Teacher', 'User','Coordinator']);
+        $visibleRoles = auth()->user()?->hasRole('Coordinator')
+            ? ['Teacher']
+            : ['Teacher', 'User', 'Coordinator'];
+
+        $users = User::whereHas('roles', function ($q) use ($visibleRoles) {
+            $q->whereIn('name', $visibleRoles);
         })
+            ->when(BranchScope::coordinatorBranchId(), fn($query, $branchId) => $query->where('branch_id', $branchId))
             ->orderBy('created_at', 'desc')
             ->get();
-        return view('teachers.index', compact('users'));
+        return view('teachers.index', compact('users', 'visibleRoles'));
     }
 
     public function grantTeacherRole($id)
@@ -84,7 +80,13 @@ class TeachersController extends Controller
     {
         $user = User::find($id);
         if ($user) {
-            $branches = $this->fetchBranchesFromERP();
+            BranchScope::abortIfCoordinatorOutside($user->branch_id);
+
+            if (auth()->user()?->hasRole('Coordinator') && !$user->hasRole('Teacher')) {
+                abort(403, 'Coordinator can edit teachers only.');
+            }
+
+            $branches = $this->localBranches();
             $branchesSelect = collect($branches)
                 ->mapWithKeys(function ($branch) {
                     $id = $branch['id'] ?? $branch['erp_branch_id'] ?? null;
@@ -94,7 +96,9 @@ class TeachersController extends Controller
                 });
 
             if ($branchesSelect->isEmpty()) {
-                $branchesSelect = Branch::orderBy('name')->pluck('name', 'erp_branch_id');
+                $branchesSelectQuery = Branch::orderBy('name');
+                BranchScope::apply($branchesSelectQuery, 'erp_branch_id');
+                $branchesSelect = $branchesSelectQuery->pluck('name', 'erp_branch_id');
             }
 
             $activeSession = Session::active()->first();
@@ -104,7 +108,19 @@ class TeachersController extends Controller
                 ->orderBy('name')
                 ->pluck('name', 'id');
 
-            return view('teachers.teachers-edit', compact('user', 'branches', 'branchesSelect', 'classesSelect'));
+            $classesByBranch = Classes::query()
+                ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id))
+                ->when(BranchScope::coordinatorBranchId(), fn($query, $branchId) => $query->where('erp_branch_id', $branchId))
+                ->orderBy('name')
+                ->get(['id', 'name', 'erp_branch_id'])
+                ->groupBy(fn($class) => (string) $class->erp_branch_id)
+                ->map(fn($classes) => $classes->map(fn($class) => [
+                    'id' => $class->id,
+                    'name' => $class->name,
+                ])->values())
+                ->toArray();
+
+            return view('teachers.teachers-edit', compact('user', 'branches', 'branchesSelect', 'classesSelect', 'classesByBranch'));
         } else {
             return redirect()->back()->with('error', 'User Not found in record!');
         }
@@ -112,38 +128,52 @@ class TeachersController extends Controller
 
     public function create()
     {
-        $branches = $this->fetchBranchesFromERP();
+        $branches = $this->localBranches();
         return view('teachers.create', compact('branches'));
     }
 
     public function store(Request $request)
     {
         // dd($request->all());
+        $roleRule = auth()->user()?->hasRole('Coordinator')
+            ? 'in:Teacher'
+            : 'in:Teacher,Coordinator';
+
         $validated = $request->validate([
             'branch_id'      => ['required', 'integer'],
-            'role'           => ['required', 'string', 'in:Teacher,Coordinator'],
+            'role'           => ['required', 'string', $roleRule],
             'employee_id'    => ['required', 'integer'],
+            'employee_name'  => ['nullable', 'string', 'max:255'],
             'employee_email' => ['required', 'email'],
             'password'       => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
         try {
-            $activeSession = Session::active()->first();
+            BranchScope::abortIfCoordinatorOutside($validated['branch_id']);
 
-            // Fetch employee from source API
-            $response = Http::timeout(10)
-                ->get(env('API_URL') . "get-employees-by-branch/{$validated['branch_id']}");
+            $activeSession = Session::active()->first();
 
             $employeeData = null;
 
-            if ($response->successful()) {
-                $employees    = $response->json()['data'] ?? [];
-                $employeeData = collect($employees)
-                    ->firstWhere('id', (int) $validated['employee_id']);
+            try {
+                $response = ErpHttp::get("get-employees-by-branch/{$validated['branch_id']}", 30);
+
+                if ($response->successful()) {
+                    $employees = $response->json()['data'] ?? [];
+                    $employeeData = collect($employees)
+                        ->firstWhere('id', (int) $validated['employee_id']);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('ERP employee lookup timed out or failed during user create; using submitted employee data.', [
+                    'branch_id' => $validated['branch_id'],
+                    'employee_id' => $validated['employee_id'],
+                    'error' => $e->getMessage(),
+                ]);
             }
 
-            // Use API data if available, fall back to form submission
-            $name  = $employeeData['name']  ?? 'Unknown';
+            // Use API data if available, fall back to the employee selected in the form.
+            $fallbackName = $validated['employee_name'] ?: (strtok($validated['employee_email'], '@') ?: 'Unknown');
+            $name  = $employeeData['name'] ?? $fallbackName;
             $email = $employeeData['email'] ?? $validated['employee_email'];
 
             if (empty($email)) {
@@ -186,23 +216,13 @@ class TeachersController extends Controller
                 }
             }
 
-            $user = User::where('email', $email)->first();
-
-            if ($user) {
-                $updateData['password'] = Hash::make($validated['password']);
-    // dd($updateData);
-                if (\Schema::hasColumn('users', 'branch_id')) {
-                    $updateData['branch_id'] = $validated['branch_id'];
-                }
-                if (\Schema::hasColumn('users', 'erp_employee_id')) {
-                    $updateData['erp_employee_id'] = $validated['employee_id'];
-                }
-
-                $user->update($updateData);
-            } else {
-                $user = User::create($userData);
+            if (User::where('email', $email)->exists()) {
+                return back()
+                    ->withErrors(['employee_email' => 'This email is already registered. Please use another employee.'])
+                    ->withInput();
             }
 
+            $user = User::create($userData);
             $user->syncRoles([$validated['role']]);
 
             return redirect()

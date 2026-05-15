@@ -6,8 +6,8 @@ namespace App\Http\Controllers;
     use App\Models\Section;
     use App\Models\Classes;
     use App\Models\Session;
+    use App\Support\ErpHttp;
     use Illuminate\Http\Request;
-    use Illuminate\Support\Facades\Http;
     use Illuminate\Support\Facades\Log;
 
     class SectionsController extends Controller
@@ -17,13 +17,16 @@ namespace App\Http\Controllers;
             $activeSession = Session::active()->first();
             $sectionQuery = Section::query()
                 ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
+
             $classQuery = Classes::query()
                 ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
 
             $totalInDb = (clone $sectionQuery)->count();
             $classMap  = (clone $classQuery)->pluck('name', 'erp_class_id')->toArray();
 
-            $branches = Branch::orderBy('name')
+            $branchQuery = Branch::orderBy('name');
+
+            $branches = $branchQuery
                 ->get()
                 ->map(fn($branch) => [
                     'id' => $branch->erp_branch_id,
@@ -42,7 +45,10 @@ namespace App\Http\Controllers;
                 ])->values())
                 ->toArray();
 
-            return view('sections.index', compact('totalInDb', 'branches', 'classMap', 'classesByBranch'));
+            $allSections = (clone $sectionQuery)->orderBy('name')->get();
+            $classMap = (clone $classQuery)->pluck('name', 'erp_class_id')->toArray();
+
+            return view('sections.index', compact('totalInDb', 'branches', 'classMap', 'classesByBranch', 'allSections'));
         }
 
         /**
@@ -50,6 +56,8 @@ namespace App\Http\Controllers;
          */
         public function sync()
         {
+                abort_unless(auth()->user()?->hasRole('Admin'), 403);
+
                 try {
                 $activeSession = Session::active()->first();
 
@@ -57,7 +65,7 @@ namespace App\Http\Controllers;
                     return back()->with('error', 'Please activate a session before syncing sections.');
                 }
 
-                $response = Http::timeout(15)->get(env('API_URL') . 'get-sections');
+                $response = ErpHttp::get('get-sections', 15);
 
                 if (!$response->successful()) {
                     return back()->with('error', 'Failed to reach ERP API. Status: ' . $response->status());

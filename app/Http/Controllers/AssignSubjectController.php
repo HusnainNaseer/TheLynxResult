@@ -10,6 +10,7 @@ use App\Models\ClassSection;
 use App\Models\ClassSubject;
 use App\Models\Session;
 use App\Models\SubjectWiseMarks;
+use App\Support\BranchScope;
 
 use Illuminate\Http\Request;
 
@@ -21,7 +22,8 @@ class AssignSubjectController extends Controller
     public function index()
     {
         $teachers = User::role('Teacher')
-            ->select('id', 'name', 'email', 'branch_name', 'branch_email', 'branch_phone', 'branch_address')
+            ->when(BranchScope::coordinatorBranchId(), fn($query, $branchId) => $query->where('branch_id', $branchId))
+            ->select('id', 'name', 'email', 'branch_id', 'branch_name', 'branch_email', 'branch_phone', 'branch_address')
             ->paginate(15);
 
         return view('teachers.assign_subjects_list', compact('teachers'));
@@ -32,6 +34,8 @@ class AssignSubjectController extends Controller
     // ─────────────────────────────────────────────
     public function create(User $teacher)
     {
+        BranchScope::abortIfCoordinatorOutside($teacher->branch_id);
+
         $activeSession = Session::active()->first();
 
         // Fetch the already-assigned subjects for this teacher
@@ -62,7 +66,9 @@ class AssignSubjectController extends Controller
             })
             ->values();
 
-        return view('teachers.assign_subject', compact('teacher', 'assignments', 'assignmentGroups'));
+        $branches = $this->assignmentBranches();
+
+        return view('teachers.assign_subject', compact('teacher', 'assignments', 'assignmentGroups', 'branches'));
     }
 
     // ─────────────────────────────────────────────
@@ -91,6 +97,20 @@ class AssignSubjectController extends Controller
             ], 422);
         }
 
+        BranchScope::abortIfCoordinatorOutside($validated['branch_id']);
+
+        $teacher = User::role('Teacher')
+            ->where('id', $validated['teacher_id'])
+            ->when(BranchScope::coordinatorBranchId(), fn($query, $branchId) => $query->where('branch_id', $branchId))
+            ->first();
+
+        if (!$teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Selected teacher does not belong to your branch.',
+            ], 403);
+        }
+
         $classExistsInBranch = Classes::where('id', $validated['class_id'])
             ->where('erp_branch_id', $validated['branch_id'])
             ->where('session_id', $activeSession->id)
@@ -117,6 +137,7 @@ class AssignSubjectController extends Controller
 
         $allowedSubjectIds = ClassSubject::where('class_id', $validated['class_id'])
             ->where('session_id', $activeSession->id)
+            ->where('branch_id', $validated['branch_id'])
             ->pluck('subject_id')
             ->map(fn($id) => (int) $id);
 
@@ -186,6 +207,7 @@ class AssignSubjectController extends Controller
         $newSubjectIds = $requestedSubjectIds;
 
         $subjects = SubjectWiseMarks::whereIn('id', $newSubjectIds)
+            ->where('session_id', $activeSession->id)
             ->get()
             ->keyBy('id');
 
@@ -230,6 +252,17 @@ class AssignSubjectController extends Controller
     // ─────────────────────────────────────────────
     public function destroy(TeacherSubjectAssignment $assignment)
     {
+        $activeSession = Session::active()->first();
+
+        if ($activeSession && (int) $assignment->session_id !== (int) $activeSession->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This assignment does not belong to the active session.',
+            ], 403);
+        }
+
+        BranchScope::abortIfCoordinatorOutside($assignment->branch_id);
+
         $assignment->delete();
 
         return response()->json([
@@ -245,8 +278,27 @@ class AssignSubjectController extends Controller
     /** GET /assign-subjects/api/branches */
     public function apiBranches()
     {
-        $branches = Branch::query()
-            ->orderBy('name')
+        return response()->json($this->assignmentBranches());
+    }
+
+    private function assignmentBranches()
+    {
+        if ($branchId = BranchScope::coordinatorBranchId()) {
+            $branch = Branch::where('erp_branch_id', $branchId)->first();
+            $user = auth()->user();
+
+            return collect([
+                [
+                    'id' => $branch?->erp_branch_id ?? $branchId,
+                    'name' => $branch?->name ?? $user?->branch_name ?? ('Branch #' . $branchId),
+                ],
+            ]);
+        }
+
+        $branchQuery = Branch::query()
+            ->orderBy('name');
+
+        $branches = $branchQuery
             ->get()
             ->map(fn($branch) => [
                 'id' => $branch->erp_branch_id,
@@ -254,13 +306,15 @@ class AssignSubjectController extends Controller
             ])
             ->values();
 
-        return response()->json($branches);
+        return $branches;
     }
 
     /** GET /assign-subjects/api/classes?branch_id=X */
     public function apiClasses(Request $request)
     {
         $branchId = $request->query('branch_id');
+        BranchScope::abortIfCoordinatorOutside($branchId);
+
         $activeSession = Session::active()->first();
 
         $classes = Classes::where('erp_branch_id', $branchId)
@@ -279,6 +333,14 @@ class AssignSubjectController extends Controller
         $activeSession = Session::active()->first();
 
         if (!$classId) {
+            return response()->json([]);
+        }
+
+        $classQuery = Classes::where('id', $classId)
+            ->when($activeSession, fn($query) => $query->where('session_id', $activeSession->id));
+        BranchScope::apply($classQuery);
+
+        if (!$classQuery->exists()) {
             return response()->json([]);
         }
 
@@ -308,9 +370,26 @@ class AssignSubjectController extends Controller
             ]);
         }
 
+        BranchScope::abortIfCoordinatorOutside($branchId);
+
+        $classExistsInBranch = Classes::where('id', $classId)
+            ->where('erp_branch_id', $branchId)
+            ->where('session_id', $activeSession->id)
+            ->exists();
+
+        if (!$classExistsInBranch) {
+            return response()->json([
+                'data' => [],
+                'total' => 0,
+                'assigned' => 0,
+            ]);
+        }
+
         $subjects = ClassSubject::where('class_subjects.class_id', $classId)
             ->where('class_subjects.session_id', $activeSession->id)
+            ->where('class_subjects.branch_id', $branchId)
             ->join('subject_wise_marks', 'class_subjects.subject_id', '=', 'subject_wise_marks.id')
+            ->where('subject_wise_marks.session_id', $activeSession->id)
             ->select('subject_wise_marks.id', 'subject_wise_marks.subject_name as name')
             ->orderBy('subject_wise_marks.subject_name')
             ->get();

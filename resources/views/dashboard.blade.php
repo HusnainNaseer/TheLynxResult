@@ -117,20 +117,11 @@
                 <div class="col-xl-4">
                     <div class="card">
                         <div class="card-body">
-                            <!-- Dropdown for session selection -->
-                            <form method="GET" action="{{ route('dashboard') }}">
-                                <div class="float-end mb-3">
-                                    <select class="form-select shadow-none form-select-sm"
-                                        onchange="window.location.href='?session_id='+this.value">
-                                        @foreach (\App\Models\Session::orderBy('id', 'desc')->get() as $session)
-                                            <option value="{{ $session->id }}"
-                                                {{ $session->id == $sessionId ? 'selected' : '' }}>
-                                                {{ $session->title }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </form>
+                            <div class="float-end mb-3">
+                                <span class="badge bg-primary-subtle text-primary">
+                                    {{ $currentSession ? $currentSession->title : 'No active session' }}
+                                </span>
+                            </div>
 
                             <h4 class="card-title mb-4">Branch Progress</h4>
 

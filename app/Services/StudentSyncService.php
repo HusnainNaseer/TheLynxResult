@@ -4,26 +4,32 @@ namespace App\Services;
 
 use App\Models\Session;
 use App\Models\Student;
-use Illuminate\Support\Facades\Http;
+use App\Support\ErpHttp;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class StudentSyncService
 {
-    public function syncForActiveSession(): array
+    public function syncForActiveSession(?string $branchId = null): array
     {
         $session = Session::active()->first();
-        // dd('bhjb',$session);
+
         if (!$session) {
             return ['synced' => 0, 'skipped' => 0, 'message' => 'No active session is selected.'];
         }
-        $response = Http::timeout(20)->get(env('API_URL') . 'get-students');
-        // dd([
-        //     'status' => $response->status(),
-        //     'successful' => $response->successful(),
-        //     'failed' => $response->failed(),
-        //     'body' => $response->body(),
-        //     'json' => $response->json(),
-        // ]);
+        try {
+            $endpoint = $branchId ? 'get-student/' . $branchId : 'get-students';
+            $response = ErpHttp::get($endpoint, 60);
+            
+        } catch (Throwable $e) {
+            Log::error('Student API connection failed: ' . $e->getMessage());
+
+            return [
+                'synced' => 0,
+                'skipped' => 0,
+                'message' => 'ERP student API is not reachable right now. Please check the ERP server/network and try again.',
+            ];
+        }
         if (!$response->successful()) {
             Log::error('Student sync failed: ' . $response->body());
 
@@ -45,6 +51,22 @@ class StudentSyncService
                 $skipped++;
                 continue;
             }
+
+            $rowBranchId = $this->firstValue($row, [
+                'enrollment.owned_by',
+                'enrollment.adm_branch',
+                'owned_by',
+                'branch_id',
+                'erp_branch_id',
+                'branch.id',
+                'branch',
+            ]);
+
+            if ($branchId && (string) $rowBranchId !== (string) $branchId) {
+                $skipped++;
+                continue;
+            }
+
             $erpStudentId = $this->firstValue($row, ['erp_student_id', 'student_id', 'std_id', 'id']);
 
             if (!$erpStudentId) {
@@ -52,22 +74,7 @@ class StudentSyncService
                 continue;
             }
 
-            $rowErpSessionId = $this->firstValue($row, [
-                'enrollment.session_id',
-                'enrollment.adm_session',
-                'erp_session_id',
-                'session_id',
-                'school_session_id',
-                'session.id',
-            ]);
-            $activeErpSessionId = $session->erp_session_id;
-
-            if ($rowErpSessionId && $activeErpSessionId && (string) $rowErpSessionId !== (string) $activeErpSessionId) {
-                $skipped++;
-                continue;
-            }
-
-            $erpSessionId = $rowErpSessionId ?: ($activeErpSessionId ?: (string) $session->id);
+            $erpSessionId = $session->erp_session_id ?: (string) $session->id;
 
             Student::updateOrCreate(
                 [
@@ -83,7 +90,7 @@ class StudentSyncService
                     'stdname' => $this->firstValue($row, ['stdname', 'student_name', 'name']),
                     'fathername' => $this->firstValue($row, ['fathername', 'father_name', 'guardian_name']),
                     'phone_no' => $this->firstValue($row, ['phone_no', 'phone', 'mobile', 'contact_no', 'fathercell']),
-                    'owned_by' => $this->firstValue($row, ['enrollment.owned_by', 'enrollment.adm_branch', 'owned_by', 'branch_id', 'erp_branch_id', 'branch.id', 'branch']),
+                    'owned_by' => $rowBranchId,
                 ]
             );
 

@@ -11,6 +11,8 @@ class StudentMarks extends Model
 {
     protected $fillable = [
         'result_id',
+        'session_id',
+        'erp_session_id',
         'subject_id',
         'term_one_mark',
         'term_one_grade',
@@ -33,10 +35,14 @@ class StudentMarks extends Model
     // {
     //     return $this->belongsTo(SubjectWiseMarks::class, 'subject_id', 'id');
     // }
-    public function subject()
+public function subject()
 {
     return $this->belongsTo(\App\Models\SubjectWiseMarks::class, 'subject_id');
 }
 
+public function session()
+{
+    return $this->belongsTo(\App\Models\Session::class, 'session_id');
 }
 
+}

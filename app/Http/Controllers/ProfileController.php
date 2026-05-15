@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Validation\Rule;
 
+use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class ProfileController extends Controller
     {
         return view('profile.edit', [
             'user' => $request->user(),
+            'branches' => Branch::where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 
@@ -41,8 +43,7 @@ class ProfileController extends Controller
                 'max:255',
                 Rule::unique('users')->ignore($user->id), // important: ignore current user
             ],
-            'branch_name' => ['nullable', 'string', 'max:255'],
-            'branch' => ['integer', 'max:255'],
+            'branch' => ['required', 'integer', Rule::exists('branches', 'erp_branch_id')],
             'class' => ['integer', 'max:255'],
             'branch_email' => ['nullable', 'email', 'max:255'],
             'branch_phone' => ['nullable', 'string', 'max:20'],
@@ -51,15 +52,15 @@ class ProfileController extends Controller
         ]);
 
         // Fill the data
-        $branch = User::getBranchAttribute($validated['branch']); // get the branch data from the accessor
+        $branch = Branch::where('erp_branch_id', $validated['branch'])->firstOrFail();
         $user->name = $validated['name'];
         $user->email = $validated['email'];
-        $user->branch_name = $branch['name'] ?? $validated['branch_name'];
-        $user->branch_id = $validated['branch'] ?? $user->branch_id;
+        $user->branch_name = $branch->name;
+        $user->branch_id = $branch->erp_branch_id;
         $user->class_id = $validated['class'] ?? $user->class_id;
-        $user->branch_email = $validated['branch_email'] ?? $user->branch_email;
-        $user->branch_phone = $validated['branch_phone'] ?? $user->branch_phone;
-        $user->branch_address = $validated['branch_address'] ?? $user->branch_address;
+        $user->branch_email = $branch->email ?? $validated['branch_email'] ?? $user->branch_email;
+        $user->branch_phone = $branch->phone ?? $validated['branch_phone'] ?? $user->branch_phone;
+        $user->branch_address = $branch->address ?? $validated['branch_address'] ?? $user->branch_address;
 
 
         // Hash password if present

@@ -131,10 +131,15 @@
                             <span class="badge bg-primary ms-2">{{ $totalInDb }}</span>
                         </h6>
                         <small class="text-muted">
-                            {{ $totalInDb > 0 ? 'Data loaded from local database.' : 'No classes synced yet. Click the button to import.' }}
+                            @role('Admin')
+                                {{ $totalInDb > 0 ? 'Data loaded from local database.' : 'No classes synced yet. Click the button to import.' }}
+                            @else
+                                Classes loaded from your branch records.
+                            @endrole
                         </small>
                     </div>
 
+                    @role('Admin')
                     <div class="d-flex gap-2">
                         @if ($totalInDb === 0)
                             <form action="{{ route('classes.sync') }}" method="POST">
@@ -153,6 +158,7 @@
                             </form>
                         @endif
                     </div>
+                    @endrole
 
                 </div>
             </div>
@@ -203,7 +209,6 @@
             {{-- ── Classes Grid ── --}}
             @php
                 $branchMap = collect($branches)->pluck('name', 'id')->toArray();
-                $allClasses = \App\Models\Classes::orderBy('name')->get();
             @endphp
 
             <div class="classes-grid" id="classesGrid">

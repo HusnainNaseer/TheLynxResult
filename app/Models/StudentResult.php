@@ -33,17 +33,20 @@ class StudentResult extends Model
     'grand_total',
     'remarks',
     'created_by',
+    'edit_by',
     'promoted_class',
     'workflow_status',
     'subject_finalized_by',
     'subject_finalized_at',
     'class_teacher_finalized_by',
     'class_teacher_finalized_at',
+    'coordinator_approved_at',
 ];
 
     protected $casts = [
         'subject_finalized_at' => 'datetime',
         'class_teacher_finalized_at' => 'datetime',
+        'coordinator_approved_at' => 'datetime',
     ];
 
 

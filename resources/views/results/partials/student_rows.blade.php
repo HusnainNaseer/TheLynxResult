@@ -26,7 +26,8 @@
         </td>
         <td>{{ $result?->overall_grade ?? 'N/A' }}</td>
         <td>{{ $result?->overall_percentage !== null ? $result->overall_percentage . '%' : 'N/A' }}</td>
-        <td>
+        <td style="width: 100px;">
+            <div class="d-flex flex-wrap gap-1 align-items-center">
             @if ($result)
                 @if ($canManageResults)
                     <a href="{{ route('results.show', $result->id) }}" class="btn btn-info btn-sm">
@@ -34,9 +35,11 @@
                     </a>
                 @endif
 
-                <a href="{{ route('results.edit', $result->id) }}" class="btn btn-warning btn-sm ajax-nav">
-                    <i class="ri-edit-line"></i>
-                </a>
+                @if ($student->can_edit_result)
+                    <a href="{{ route('results.edit', $result->id) }}" class="btn btn-warning btn-sm ajax-nav">
+                        <i class="ri-edit-line"></i>
+                    </a>
+                @endif
 
                 @if ($student->can_forward_to_class_teacher)
                     <form action="{{ route('results.forward', $result->id) }}" method="POST" class="d-inline"
@@ -60,7 +63,17 @@
                     </form>
                 @endif
 
-                @if ($canManageResults)
+                @if ($student->can_approve_result)
+                    <form action="{{ route('results.coordinator-approve', $result->id) }}" method="POST" class="d-inline"
+                        onsubmit="return confirm('Approve this result?')">
+                        @csrf
+                        <button class="btn btn-success btn-sm" type="submit" title="Approve">
+                            <i class="ri-check-line"></i>
+                        </button>
+                    </form>
+                @endif
+
+                @if ($student->can_delete_result)
                     <form action="{{ route('results.destroy', $result->id) }}" method="POST"
                         class="d-inline ajax-delete-result"
                         onsubmit="return confirm('Rollback this result to create state?')">
@@ -77,6 +90,7 @@
                     Create Result
                 </a>
             @endif
+            </div>
         </td>
     </tr>
 @empty

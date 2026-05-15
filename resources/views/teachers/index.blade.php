@@ -21,7 +21,7 @@
             <div class="row" style="display:flex; justify-content:center;align-items:center;">
                 <div class="col-10">
                     <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                        <h4 class="mb-sm-0">Employees</h4>
+                        <h4 class="mb-sm-0">@role('Coordinator') Teachers @else Employees @endrole</h4>
                     </div>
                 </div>
                 <div class="col-2" style="display:flex; justify-content:end;">
@@ -50,16 +50,20 @@
                         <div class="card-body">
 
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h4 class="card-title">All Employees</h4>
+                                <h4 class="card-title">@role('Coordinator') Teachers @else All Employees @endrole</h4>
 
                                 <div class="d-flex gap-2">
                                     <select class="form-select" id="roleFilter" style="width: auto;">
                                         <option value="all">All Roles</option>
                                         {{-- <option value="Admin">Admin</option> --}}
+                                        @role('Admin')
                                         <option value="Coordinator">Coordinator</option>
+                                        @endrole
                                         <option value="Teacher">Teacher</option>
                                         {{-- <option value="Student">Student</option> --}}
+                                        @role('Admin')
                                         <option value="User">User</option>
+                                        @endrole
                                     </select>
 
                                     <input class="form-control" type="search" id="teacherSearch" name="search"
@@ -126,6 +130,7 @@
 
                                                 <!-- ACTION COLUMN -->
                                                 <td>
+                                                    @role('Admin')
                                                     @if ($user->hasRole('User'))
                                                         <form action="{{ route('users.grant', $user->id) }}" method="POST"
                                                             class="d-inline">
@@ -145,8 +150,9 @@
                                                             </button>
                                                         </form>
                                                     @endif
+                                                    @endrole
 
-                                                    @if ($user->hasRole('Teacher') || $user->hasRole('Coordinator'))
+                                                    @if ($user->hasRole('Teacher') || (auth()->user()->hasRole('Admin') && $user->hasRole('Coordinator')))
                                                         <a href="{{ route('teachers.edit', $user->id) }}"
                                                             class="btn btn-warning btn-sm">
                                                             <i class="ri-edit-line"></i> Edit

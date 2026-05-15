@@ -10,6 +10,7 @@ use App\Http\Controllers\TeachersController;
 use App\Http\Controllers\FetchApiController;
 use App\Http\Controllers\SectionsController;
 use App\Http\Controllers\AssignSubjectController;
+use App\Http\Controllers\BranchController;
 use App\Http\Controllers\ClassesController;
 use App\Http\Controllers\ClassSectionController;
 use App\Http\Controllers\ClassSubjectController;
@@ -37,12 +38,14 @@ Route::get('/test-role', function () {
     ];
 })->middleware('auth');
 
-Route::middleware(['auth', 'role:Admin'])->group(function () {
+Route::middleware(['auth', 'role:Admin|Coordinator'])->group(function () {
     Route::get('/teachers', [TeachersController::class, 'index'])->name('teachers.index');
     Route::get('/teachers/create', [TeachersController::class, 'create'])->name('teachers.create');
     Route::post('/teachers/store', [TeachersController::class, 'store'])->name('teachers.store');
     Route::get('/teachers/edit/{id}', [TeachersController::class, 'teacher_edit'])->name('teachers.edit');
-    Route::post('/teachers/password/change', [AuthPasswordController::class, 'teacherpassreset'])->name('teacherpass.reset');
+    Route::post('/teachers/password/change', [AuthPasswordController::class, 'teacherpassreset'])
+        ->middleware('role:Admin')
+        ->name('teacherpass.reset');
 });
 
 /*
@@ -73,22 +76,25 @@ Route::middleware(['permission:view dashboard'])->get('/dashboard', function (Re
     $user = Auth::user();
     $isAdmin = $user->hasRole('Admin');
 
-    $currentSession = Session::active()->first() ?? Session::orderBy('id', 'desc')->first();
-    $sessionId = $request->get('session_id') ?? ($currentSession ? $currentSession->id : null);
+    $currentSession = Session::active()->first();
+    $sessionId = $currentSession?->id;
 
     $studentResultQuery = StudentResult::query()
-        ->when($sessionId, fn($query) => $query->where('session_id', $sessionId));
+        ->where('session_id', $sessionId ?: 0);
 
     $totalStudents = $isAdmin
         ? (clone $studentResultQuery)->count()
         : (clone $studentResultQuery)->where('created_by', $user->id)->count();
 
+    $subjectQuery = SubjectWiseMarks::query()
+        ->where('session_id', $sessionId ?: 0);
+
     $totalsubjects = $isAdmin
-        ? SubjectWiseMarks::count()
-        : SubjectWiseMarks::where('created_by', $user->id)->count();
+        ? (clone $subjectQuery)->count()
+        : (clone $subjectQuery)->where('created_by', $user->id)->count();
 
     $latestResultsQuery = StudentResult::orderByDesc('overall_percentage')
-        ->when($sessionId, fn($query) => $query->where('session_id', $sessionId))
+        ->where('session_id', $sessionId ?: 0)
         ->whereRaw("TRIM(UPPER(overall_grade)) NOT IN ('D','E','U','F')")
         ->whereNotNull('overall_percentage');
 
@@ -133,9 +139,11 @@ Route::middleware(['permission:view dashboard'])->get('/dashboard', function (Re
 |--------------------------------------------------------------------------
 */
 Route::post('/users/{id}/grant', [TeachersController::class, 'grantTeacherRole'])
+    ->middleware(['auth', 'role:Admin'])
     ->name('users.grant');
 
 Route::post('/users/{id}/revoke', [TeachersController::class, 'revokeTeacherRole'])
+    ->middleware(['auth', 'role:Admin'])
     ->name('users.revoke');
 
 /*
@@ -159,7 +167,16 @@ Route::middleware('auth', 'role:Admin|Teacher|Coordinator')->group(function () {
     Route::get('/results', [TheLynxResultController::class, 'results'])
         ->name('students.result');
 
+    Route::get('/results/coordinator-approvals', [TheLynxResultController::class, 'coordinatorApprovals'])
+        ->middleware('role:Admin|Coordinator')
+        ->name('results.coordinator-approvals');
+
+    Route::get('/results/approved', [TheLynxResultController::class, 'approvedResults'])
+        ->middleware('role:Admin|Coordinator')
+        ->name('results.approved');
+
     Route::post('/results/sync-students', [TheLynxResultController::class, 'syncStudents'])
+        ->middleware('role:Admin|Coordinator')
         ->name('results.sync-students');
 
     /*
@@ -193,6 +210,10 @@ Route::middleware('auth', 'role:Admin|Teacher|Coordinator')->group(function () {
 
     Route::post('/results/{id}/forward', [TheLynxResultController::class, 'forward'])
         ->name('results.forward');
+
+    Route::post('/results/{id}/coordinator-approve', [TheLynxResultController::class, 'coordinatorApprove'])
+        ->middleware('role:Coordinator')
+        ->name('results.coordinator-approve');
 
     Route::get('/results/{id}', [TheLynxResultController::class, 'show'])
         ->name('results.show');
@@ -235,17 +256,22 @@ require __DIR__ . '/auth.php';
 
 
 // ── FetchApi routes ──────────────────────────────────────────
-Route::get('get-students',                [FetchApiController::class, 'getstudents'])->name('getstudents');
-Route::get('get-classes',                 [FetchApiController::class, 'getclasses'])->name('getclasses');
-Route::get('get-branches',                [FetchApiController::class, 'getbranches'])->name('getbranches');
-Route::get('get-branchemployee',          [FetchApiController::class, 'getbranchemployee'])->name('getbranchemployee');
-Route::get('api/branches',                [FetchApiController::class, 'getbranches'])->name('api.branches');
-Route::get('api/employees',               [FetchApiController::class, 'getbranchemployee'])->name('api.employees');
-Route::get('api/employees/{employeeId}',  [FetchApiController::class, 'getemployeedetails'])->name('api.employee.details');
+Route::middleware(['auth', 'role:Admin'])->group(function () {
+    Route::get('get-students', [FetchApiController::class, 'getstudents'])->name('getstudents');
+    Route::get('get-classes', [FetchApiController::class, 'getclasses'])->name('getclasses');
+});
+
+Route::middleware(['auth', 'role:Admin|Coordinator'])->group(function () {
+    Route::get('get-branches', [FetchApiController::class, 'getbranches'])->name('getbranches');
+    Route::get('get-branchemployee', [FetchApiController::class, 'getbranchemployee'])->name('getbranchemployee');
+    Route::get('api/branches', [FetchApiController::class, 'getbranches'])->name('api.branches');
+    Route::get('api/employees', [FetchApiController::class, 'getbranchemployee'])->name('api.employees');
+    Route::get('api/employees/{employeeId}', [FetchApiController::class, 'getemployeedetails'])->name('api.employee.details');
+});
 
 
 // Assign Subjects CRUD
-Route::prefix('assign-subjects')->name('assign-subjects.')->group(function () {
+Route::middleware(['auth', 'role:Admin|Coordinator'])->prefix('assign-subjects')->name('assign-subjects.')->group(function () {
 
     // Teacher list (only Teachers)
     Route::get('/',                 [AssignSubjectController::class, 'index'])->name('index');
@@ -267,24 +293,43 @@ Route::prefix('assign-subjects')->name('assign-subjects.')->group(function () {
 });
 
 Route::middleware(['auth', 'role:Admin'])->group(function () {
-    Route::get('/classes',        [ClassesController::class, 'index'])->name('classes.index');
+    Route::get('/branches', [BranchController::class, 'index'])
+        ->middleware('permission:view branches')
+        ->name('branches.index');
+    Route::post('/branches/sync', [BranchController::class, 'sync'])
+        ->middleware('permission:sync branches')
+        ->name('branches.sync');
+    Route::post('/branches/resync', [BranchController::class, 'resync'])
+        ->middleware('permission:sync branches')
+        ->name('branches.resync');
+
     Route::post('/classes/sync',  [ClassesController::class, 'sync'])->name('classes.sync');
     Route::post('/classes/resync', [ClassesController::class, 'resync'])->name('classes.resync');
 });
 
+Route::middleware(['auth', 'role:Admin|Coordinator'])->group(function () {
+    Route::get('/classes',        [ClassesController::class, 'index'])->name('classes.index');
+});
+
 Route::middleware(['auth', 'role:Admin'])->group(function () {
-    Route::get('/sections',         [SectionsController::class, 'index'])->name('sections.index');
     Route::post('/sections/sync',   [SectionsController::class, 'sync'])->name('sections.sync');
     Route::post('/sections/resync', [SectionsController::class, 'resync'])->name('sections.resync');
+});
+
+Route::middleware(['auth', 'role:Admin|Coordinator'])->group(function () {
+    Route::get('/sections',         [SectionsController::class, 'index'])->name('sections.index');
 });
 
 // ── Class Sections ────────────────────────────────────────────────────────
 // Add this block to web.php alongside the existing classes / sections groups.
 
 Route::middleware(['auth', 'role:Admin'])->group(function () {
-    Route::get('/class-sections',         [ClassSectionController::class, 'index'])->name('class-sections.index');
     Route::post('/class-sections/sync',   [ClassSectionController::class, 'sync'])->name('class-sections.sync');
     Route::post('/class-sections/resync', [ClassSectionController::class, 'resync'])->name('class-sections.resync');
+});
+
+Route::middleware(['auth', 'role:Admin|Coordinator'])->group(function () {
+    Route::get('/class-sections',         [ClassSectionController::class, 'index'])->name('class-sections.index');
     Route::get('/classsubject', [ClassSubjectController::class, 'index'])->name('class-subjects.index');
 
     Route::post('/class-subjects/store', [ClassSubjectController::class, 'store'])

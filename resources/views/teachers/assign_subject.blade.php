@@ -162,6 +162,7 @@
                                             <td>{{ $group->section_name }}</td>
                                             <td class="group-subjects">{{ $group->subject_names->implode(', ') }}</td>
                                             <td class="text-center">
+                                                @if (!auth()->user()->hasRole('Coordinator') || (string) $group->branch_id === (string) auth()->user()->branch_id)
                                                 <button
                                                     class="btn btn-danger btn-sm btn-remove"
                                                     data-ids="{{ $group->ids->implode(',') }}"
@@ -169,6 +170,9 @@
                                                 >
                                                     <i class="ri-delete-bin-line"></i>
                                                 </button>
+                                                @else
+                                                    <span class="text-muted small">View only</span>
+                                                @endif
                                             </td>
                                         </tr>
                                     @empty
@@ -200,6 +204,7 @@ $(document).ready(function () {
     const allValue = '__all__';
     let availableSubjects = [];
     let allClassSubjects = [];
+    const localBranches = @json($branches);
     const assignedSubjectsByGroup = @json(
         $assignmentGroups->mapWithKeys(fn($group) => [$group->key => $group->subject_ids])->toArray()
     );
@@ -236,7 +241,7 @@ $(document).ready(function () {
             select.val(null).trigger('change.select2');
             $('#subjectHint').text('Select branch, class, and section first').css('color', '#6c757d');
         } else {
-            select.html(`<option value="">${placeholder}</option>`);
+            select.html(`<option value="">${escapeHtml(placeholder)}</option>`);
         }
 
         select.prop('disabled', true);
@@ -357,20 +362,13 @@ $(document).ready(function () {
         `);
     }
 
-    $.ajax({
-        url: '{{ route("assign-subjects.api.branches") }}',
-        type: 'GET',
-        success: function (response) {
-            const branches = response.data ?? response;
-
-            branches.forEach(branch => {
-                appendOption($('#branchSelect'), branch.id, branch.name);
-            });
-        },
-        error: function () {
-            showAlert('Could not load branches from local database.');
-        }
+    localBranches.forEach(branch => {
+        appendOption($('#branchSelect'), branch.id, branch.name);
     });
+
+    if (localBranches.length === 1) {
+        $('#branchSelect').val(String(localBranches[0].id)).trigger('change');
+    }
 
     $('#branchSelect').on('change', function () {
         const branchId = $(this).val();
@@ -461,18 +459,12 @@ $(document).ready(function () {
                     return;
                 }
 
-                if (!availableSubjects.length) {
-                    $('#subjectHint').text('All subjects already assigned').css('color', '#dc3545');
-                    checkButton();
-                    return;
-                }
-
                 $('#subjectSelect').prop('disabled', false);
 
                 $('#subjectSelect option[value="' + allValue + '"]')
                     .prop('disabled', !!response.class_teacher_assigned || assignedSubjects > 0)
                     .text(response.class_teacher_assigned
-                        ? 'All subjects - assigned to class teacher'
+                        ? 'All subjects - assigned to ' + (response.class_teacher_name || 'class teacher')
                         : 'All subjects');
 
                 allClassSubjects.forEach(subject => {
@@ -480,8 +472,19 @@ $(document).ready(function () {
                 });
 
                 $('#subjectSelect').trigger('change.select2');
+
+                if (!availableSubjects.length) {
+                    $('#subjectHint')
+                        .text('All individual subjects already assigned')
+                        .css('color', '#dc3545');
+                    checkButton();
+                    return;
+                }
+
                 if (response.class_teacher_assigned) {
-                    $('#subjectHint').text('').css('color', '#6c757d');
+                    $('#subjectHint')
+                        .text('Class teacher: ' + (response.class_teacher_name || 'assigned') + '. Individual subjects can still be assigned.')
+                        .css('color', '#6c757d');
                 } else {
                     $('#subjectHint')
                         .text(availableSubjects.length + ' subject(s) available, ' + assignedSubjects + ' already assigned')

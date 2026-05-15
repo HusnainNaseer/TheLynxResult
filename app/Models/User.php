@@ -7,9 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Support\ErpHttp;
 
 class User extends Authenticatable
 {
@@ -70,6 +70,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'erp_access_token',
     ];
 
     /**
@@ -82,6 +83,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'erp_access_token' => 'encrypted',
+            'erp_token_expires_at' => 'datetime',
         ];
     }
     public static function getBranchAttribute($branchId)
@@ -89,7 +92,7 @@ class User extends Authenticatable
         $branchId = $branchId; // use the provided branch ID or fallback to the user's branch_id
 
         try {
-            $response = Http::get(env('API_URL') . "get-branch/{$branchId}");
+            $response = ErpHttp::get("get-branch/{$branchId}");
 
             if ($response->successful()) {
                 return $response->json()['data'] ?? null;

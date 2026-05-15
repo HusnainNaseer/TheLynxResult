@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'erp' => [
+        'api_url' => env('API_URL', 'https://erp.thelynxschool.edu.pk/api/'),
+        'web_url' => env('ERP_URL', 'https://erp.thelynxschool.edu.pk'),
+        'verify_ssl' => env('ERP_VERIFY_SSL', env('APP_ENV') !== 'local'),
+        'admin_email' => env('ERP_ADMIN_EMAIL', 'company@example.com'),
+        'admin_password' => env('ERP_ADMIN_PASSWORD', '123456'),
+    ],
+
 ];
