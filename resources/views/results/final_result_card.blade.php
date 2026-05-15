@@ -3,452 +3,565 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>The Lynx School – Report Card</title>
+    <title>The Lynx School - Report Card</title>
 
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            background: #eaeaea;
+            margin: 0;
+            background: #efefef;
+            color: #000;
             font-family: Calibri, Arial, sans-serif;
         }
 
         .sheet {
-            width: 1100px;
-            margin: 20px auto;
+            width: 1120px;
+            min-height: 780px;
+            margin: 18px auto;
             background: #fff;
-            padding: 20px;
-            border: 2px solid #000;
+            border: 0px solid #111;
+            padding: 46px 112px 38px;
         }
 
-        /* HEADER */
         .header {
-            text-align: center;
             position: relative;
-        }
-
-        .school-name {
-            font-family: 'Edwardian Script ITC', cursive;
-            color: red;
-            font-size: 48px;
-            /* text-align: center; */
-            margin: 0;
-            font-weight: normal;
-            margin-left: -180px !important;
-        }
-
-        .school-info {
-            font-size: 14px;
-            font-weight: bold;
-            margin-top: 5px;
-        }
-
-        .logo {
-            position: absolute;
-            right: 10px;
-            top: 0;
-            width: 80px;
-        }
-
-        .academic-year {
-            margin: 10px auto;
-            background: #00b0f0;
-            color: #000;
-            font-weight: bold;
-            width: 300px;
-            padding: 4px;
-            font-size: 13px;
-        }
-
-        /* STUDENT INFO */
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            font-size: 12px;
-        }
-
-        .info td {
-            /* border: 1px solid #000; */
-            padding: 5px;
-            font-weight: bold;
-            width: 25%;
             text-align: center;
-
-        }
-
-        .info td span {
-            font-weight: normal;
-        }
-
-        /* MARKS TABLE */
-        .marks th,
-        .marks td {
-            border: 1px solid #000;
-            padding: 4px;
-            text-align: center;
-        }
-
-        .marks th {
-            background: #d9d9d9;
-            font-weight: bold;
-        }
-
-        .subject {
-            text-align: left !important;
-            padding-left: 6px !important;
-            font-weight: bold;
-        }
-
-        .total-row td {
-            font-weight: bold;
-        }
-
-        /* FOOTER */
-        .footer {
-            margin-top: 15px;
-            font-size: 12px;
-        }
-
-        .footer table td {
-            padding: 5px;
-        }
-
-        .signature {
-            margin-top: 30px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-        }
-
-        .line {
-            border-top: 1px solid #000;
-            width: 200px;
-            text-align: center;
-            padding-top: 3px;
-            font-weight: bold;
         }
 
         .school-logo {
-            width: 120px;
+            position: absolute;
+            left: 8px;
+            top: 0;
+            width: 58px;
             height: auto;
         }
 
-        .header-title {
+        .school-name {
+            margin: 0;
+            color: #ff0000;
+            font-family: "Edwardian Script ITC", "Brush Script MT", cursive;
+            font-size: 32px;
+            font-weight: 400;
+            line-height: 1;
+        }
 
-            font-family: "Edwardian Script ITC", "Adwardian SC", cursive;
-            font-size: 48px;
-            display: flex;
+        .branch-name {
+            margin-top: 10px;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .branch-meta {
+            margin-top: 5px;
+            font-size: 8px;
+            font-weight: 700;
+        }
+
+        .report-title {
+            width: 320px;
+            margin: 14px auto 14px;
+            padding: 4px 8px;
+            background: #c6d9f1;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .student-info {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+            font-size: 8px;
+            font-weight: 700;
+        }
+
+        .student-info td {
+            padding: 0 8px 6px 0;
+            white-space: nowrap;
+        }
+
+        .line-value {
+            display: inline-block;
+            min-width: 74px;
+            margin-left: 5px;
+            border-bottom: 1px solid #000;
+            text-align: center;
+            font-weight: 400;
+        }
+
+        .line-value.wide {
+            min-width: 126px;
+        }
+
+        .marks {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            font-size: 8px;
+        }
+
+        .marks th,
+        .marks td {
+            border: 1px solid #000;
+            padding: 2px 3px;
+            text-align: center;
+            line-height: 1.15;
+        }
+
+        .marks th {
+            font-weight: 700;
+        }
+
+        .marks .subject-cell {
+            text-align: left;
+            padding-left: 8px;
+            font-weight: 700;
+        }
+
+        .marks .total-row td {
+            font-weight: 700;
+        }
+
+        .term-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            margin-top: 10px;
+            font-size: 8px;
+        }
+
+        .term-title {
+            background: #c6d9f1;
+            text-align: center;
+            font-weight: 700;
+            padding: 4px;
+            margin-bottom: 12px;
+        }
+
+        .term-summary {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            font-weight: 700;
+        }
+
+        .term-summary td {
+            padding: 4px 3px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .term-summary .summary-label {
+            width: 50%;
+            text-align: right;
+        }
+
+        .term-summary .summary-value {
+            width: 28%;
+            text-align: center;
+        }
+
+        .term-summary .summary-unit {
+            width: 22%;
+            text-align: left;
+        }
+
+        .term-summary .line-value {
+            min-width: 52px;
+            margin-left: 0;
+        }
+
+        .bottom-grid {
+            display: grid;
+            grid-template-columns: 390px 1fr;
+            align-items: end;
+            column-gap: 100px;
+            margin-top: 26px;
+            font-size: 8px;
+        }
+
+        .grade-range {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+
+        .grade-range th {
+            background: #c6d9f1;
+            padding: 4px;
+            font-weight: 700;
+        }
+
+        .grade-range th,
+        .grade-range td {
+            border: 1px solid #000;
+            padding: 3px;
+        }
+
+        .promoted-box {
+            font-weight: 700;
+        }
+
+        .promotion-row {
+            display: grid;
+            grid-template-columns: 115px 1fr 160px;
             align-items: center;
-            justify-content: space-between;
-            gap: 20px;
+            gap: 0;
         }
 
-        .info {
-            font-weight: bolder;
-            font-size: :12px;
+        .promotion-label {
+            text-align: right;
+            padding-right: 6px;
         }
 
-        .remarks-section {
-            /* margin: 0px; */
-            border: 1px solid #000;
-            /* padding: 15px; */
-            padding-left: 10px;
-            /* margin: 0 20px 20px 20px; */
-            /* background: #f9f9f9; */
+        .promotion-value {
+            min-height: 20px;
+            border-bottom: 1px solid #000;
         }
 
-        .remarks-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .grading-table {
-            /* margin: 0 20px 20px 20px; */
-        }
-
-        .grading-table td {
-            font-family: Calibri, sans-serif;
-            border: 1px solid #000;
-            padding: 8px;
+        .success-box {
+            background: #00b050;
+            color: #000;
+            font-weight: 700;
             text-align: center;
-            /* font-weight: bold; */
+            padding: 6px;
         }
 
-        .grading-system {
-            margin: 20px;
-            font-family: Calibri, sans-serif;
-            background: #64B5F6;
-            color: black;
-            padding: 10px;
+        .remarks-line {
+            margin-top: 10px;
+            line-height: 1.35;
+            min-height: 18px;
+        }
+
+        .signatures {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 90px;
+            margin-top: 34px;
+            font-size: 8px;
             text-align: center;
-            font-weight: bold;
+        }
+
+        .signature-name {
+            min-height: 14px;
+            font-weight: 700;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000;
+            padding-top: 4px;
+        }
+
+        .system-note {
+            margin-top: 30px;
+            font-size: 7px;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .sheet {
+                width: 100%;
+                min-height: auto;
+                margin: 0;
+                border: 2px solid #111;
+                page-break-after: always;
+            }
         }
     </style>
 </head>
 
 <body>
+    @php
+        $branchName = $branch?->name ?? $creator->branch_name ?? 'N/A';
+        $branchEmail = $branch?->email ?? $creator->branch_email ?? 'N/A';
+        $branchPhone = $branch?->phone ?? $creator->branch_phone ?? 'N/A';
+        $branchAddress = $branch?->address ?? $creator->branch_address ?? 'N/A';
+        $principalName = $branch?->principal_headmistress ?: 'Principal/Headmistress';
+        $executiveDirector = $branch?->executive_director_islamabad ?: 'Executive Director Islamabad';
+        $marksBySubject = $student->marks->keyBy(fn($mark) => (int) $mark->subject_id);
+
+        $gradeFromPercentage = function ($percentage) {
+            if ($percentage >= 90) {
+                return 'A+';
+            }
+            if ($percentage >= 80) {
+                return 'A';
+            }
+            if ($percentage >= 70) {
+                return 'B';
+            }
+            if ($percentage >= 60) {
+                return 'C';
+            }
+            if ($percentage >= 50) {
+                return 'D';
+            }
+            if ($percentage >= 40) {
+                return 'E';
+            }
+
+            return 'U';
+        };
+
+        $remarksFromGrade = function ($grade) {
+            return match ($grade) {
+                'A+' => 'Excellent',
+                'A' => 'Very Good',
+                'B' => 'Good',
+                'C' => 'Satisfactory',
+                'D' => 'Pass',
+                'E' => 'Marginal',
+                default => 'Needs Improvement',
+            };
+        };
+
+        $formatNumber = function ($value) {
+            $number = (float) ($value ?? 0);
+            return fmod($number, 1.0) === 0.0 ? (string) (int) $number : number_format($number, 2);
+        };
+
+        $termOneTotal = 0;
+        $termOneObtained = 0;
+        $termTwoTotal = 0;
+        $termTwoObtained = 0;
+        $annualTotal = 0;
+        $annualObtained = 0;
+    @endphp
 
     <div class="sheet">
-
-        <!-- HEADER -->
         <div class="header">
-            <div class="header-title">
-                <div class=""></div>
-                <div class=""></div>
-                <h1 class="school-name">The Lynx School</h1>
-                <img src="{{ asset('images/lynx_logo.png') }}" alt="Lynx Logo" class="school-logo">
+            <img src="{{ asset('images/lynx_logo.png') }}" alt="The Lynx School" class="school-logo">
+            <h1 class="school-name">The Lynx School</h1>
+            <div class="branch-name">{{ $branchName }}</div>
+            <div class="branch-meta">
+                Phone: {{ $branchPhone }} &nbsp;&nbsp;&nbsp; Email: {{ $branchEmail }}
             </div>
-            <div class="school-info">
-                <span style="font-size: 18px;">
-                    {{ $creator->branch_name ?? 'N/A' }}
-                </span>
-                Adress: {{ $creator->branch_address ?? 'N/A' }}<br>
-                Contact No: {{ $creator->branch_phone ?? 'N/A' }} &nbsp;|
-                Email: &nbsp; {{ $creator->branch_email ?? 'N/A' }}
-            </div>
-            {{-- <img src="{{ asset('images/lynx_logo.png') }}" class="logo"> --}}
-
-            <div class="academic-year">Academic Year {{ @$student->session ? $student->session->title : '' }}</div>
+            <div class="branch-meta">{{ $branchAddress }}</div>
+            <div class="report-title">Report Card Academic Year {{ $student->session?->title ?? '' }}</div>
         </div>
 
-        <!-- STUDENT INFO -->
-        <table class="info">
+        <table class="student-info">
             <tr>
-                <td>Roll No: <u>&nbsp;&nbsp;&nbsp;&nbsp;{{ $student->rollno }}&nbsp;&nbsp;&nbsp;&nbsp;</u></td>
-                <td>Student Name: <u>&nbsp;&nbsp;&nbsp;&nbsp;{{ $student->name }}&nbsp;&nbsp;&nbsp;&nbsp;</u></td>
-                <td> Class/section: <u>&nbsp;&nbsp;&nbsp;&nbsp;{{ $student->class }} /
-                        {{ $student->section }}&nbsp;&nbsp;&nbsp;&nbsp;</u></td>
-                <td>Promoted To: __<u>{{ $student->promoted_class }}</u>___</td>
+                <td>Roll No: <span class="line-value">{{ $student->rollno }}</span></td>
+                <td>Student Name: <span class="line-value wide">{{ $student->name }}</span></td>
+                <td>Father Name: <span class="line-value wide">{{ $student->student?->fathername ?? '' }}</span></td>
+                <td>Class: <span class="line-value">{{ $student->class }}</span></td>
+                <td>Section: <span class="line-value">{{ $student->section }}</span></td>
             </tr>
         </table>
 
-        <!-- MARKS TABLE -->
-        <table class="marks" style="margin-top:10px;">
+        <table class="marks">
+            <colgroup>
+                <col style="width: 28px;">
+                <col style="width: 160px;">
+                <col span="4">
+                <col span="4">
+                <col span="4">
+            </colgroup>
             <tr>
                 <th rowspan="2"></th>
                 <th rowspan="2">Subject</th>
                 <th colspan="4">First Term</th>
                 <th colspan="4">Second Term</th>
+                <th colspan="4">Annual Result</th>
             </tr>
             <tr>
-                <th>Total</th>
-                <th>Obt</th>
+                <th>Total<br>Marks</th>
+                <th>Marks<br>Obtained</th>
                 <th>Grade</th>
                 <th>Remarks</th>
-                <th>Total</th>
-                <th>Obt</th>
+                <th>Total<br>Marks</th>
+                <th>Marks<br>Obtained</th>
                 <th>Grade</th>
                 <th>Remarks</th>
-
+                <th>Total<br>Marks</th>
+                <th>Marks<br>Obtained</th>
+                <th>Grade</th>
+                <th>Remarks</th>
             </tr>
 
-            @php
-                $t1_total = 0;
-                $t1_obt = 0;
-                $t2_total = 0;
-                $t2_obt = 0;
-
-                $gradeFromPercentage = function ($p) {
-                    if ($p >= 90) {
-                        return 'A+';
-                    }
-                    if ($p >= 80) {
-                        return 'A';
-                    }
-                    if ($p >= 70) {
-                        return 'B';
-                    }
-                    if ($p >= 60) {
-                        return 'C';
-                    }
-                    if ($p >= 50) {
-                        return 'D';
-                    }
-                    if ($p >= 40) {
-                        return 'E';
-                    }
-                    if ($p >= 30) {
-                        return 'U';
-                    }
-                    return 'F'; // Below 30
-                };
-
-                $remarksFromGrade = function ($g) {
-                    return match ($g) {
-                        'A+' => 'Excellent',
-                        'A' => 'Very Good',
-                        'B' => 'Good',
-                        'C' => 'Satisfactory',
-                        'D' => 'Pass',
-                        'E' => 'Marginal',
-                        'U' => 'Unsatisfactory',
-                        default => 'Fail',
-                    };
-                };
-            @endphp
-
-            @foreach ($student->marks as $mark)
+            @forelse ($subjects as $subject)
                 @php
-                    // Calculate percentage for this subject
-                    $t1_subject_percentage =
-                        $mark->subject->term_one_marks > 0
-                            ? ($mark->term_one_mark / $mark->subject->term_one_marks) * 100
-                            : 0;
-                    $t2_subject_percentage =
-                        $mark->subject->term_two_marks > 0
-                            ? ($mark->term_two_mark / $mark->subject->term_two_marks) * 100
-                            : 0;
+                    $mark = $marksBySubject->get((int) $subject->id);
+                    $t1Total = (float) ($mark?->term_one_total ?? $subject->term_one_marks ?? 0);
+                    $t2Total = (float) ($mark?->term_two_total ?? $subject->term_two_marks ?? 0);
+                    $t1Obtained = (float) ($mark?->term_one_mark ?? 0);
+                    $t2Obtained = (float) ($mark?->term_two_mark ?? 0);
+                    $subjectAnnualTotal = $t1Total + $t2Total;
+                    $subjectAnnualObtained = $t1Obtained + $t2Obtained;
+                    $t1Grade = $t1Total > 0 ? $gradeFromPercentage(($t1Obtained / $t1Total) * 100) : '';
+                    $t2Grade = $t2Total > 0 ? $gradeFromPercentage(($t2Obtained / $t2Total) * 100) : '';
+                    $annualGrade = $subjectAnnualTotal > 0 ? $gradeFromPercentage(($subjectAnnualObtained / $subjectAnnualTotal) * 100) : '';
 
-                    // Calculate grades dynamically
-                    $t1_subject_grade = $gradeFromPercentage($t1_subject_percentage);
-                    $t2_subject_grade = $gradeFromPercentage($t2_subject_percentage);
+                    $termOneTotal += $t1Total;
+                    $termOneObtained += $t1Obtained;
+                    $termTwoTotal += $t2Total;
+                    $termTwoObtained += $t2Obtained;
+                    $annualTotal += $subjectAnnualTotal;
+                    $annualObtained += $subjectAnnualObtained;
                 @endphp
                 <tr>
                     <td>{{ $loop->iteration }}</td>
-                    <td class="subject">{{ $mark->subject->subject_name }}</td>
-
-                    <td>{{ $mark->subject->term_one_marks }}</td>
-                    <td>{{ $mark->term_one_mark }}</td>
-                    <td>{{ $t1_subject_grade }}</td>
-                    <td>{{ $remarksFromGrade($t1_subject_grade) }}</td>
-
-                    <td>{{ $mark->subject->term_two_marks }}</td>
-                    <td>{{ $mark->term_two_mark }}</td>
-                    <td>{{ $t2_subject_grade }}</td>
-                    <td>{{ $remarksFromGrade($t2_subject_grade) }}</td>
+                    <td class="subject-cell">{{ $subject->subject_name }}</td>
+                    <td>{{ $formatNumber($t1Total) }}</td>
+                    <td>{{ $formatNumber($t1Obtained) }}</td>
+                    <td>{{ $t1Grade }}</td>
+                    <td>{{ $t1Grade ? $remarksFromGrade($t1Grade) : '' }}</td>
+                    <td>{{ $formatNumber($t2Total) }}</td>
+                    <td>{{ $formatNumber($t2Obtained) }}</td>
+                    <td>{{ $t2Grade }}</td>
+                    <td>{{ $t2Grade ? $remarksFromGrade($t2Grade) : '' }}</td>
+                    <td>{{ $formatNumber($subjectAnnualTotal) }}</td>
+                    <td>{{ $formatNumber($subjectAnnualObtained) }}</td>
+                    <td>{{ $annualGrade }}</td>
+                    <td>{{ $annualGrade ? $remarksFromGrade($annualGrade) : '' }}</td>
                 </tr>
-
-                @php
-                    $t1_total += $mark->subject->term_one_marks;
-                    $t1_obt += $mark->term_one_mark;
-                    $t2_total += $mark->subject->term_two_marks;
-                    $t2_obt += $mark->term_two_mark;
-                @endphp
-            @endforeach
+            @empty
+                <tr>
+                    <td colspan="14">No subjects assigned to this class.</td>
+                </tr>
+            @endforelse
 
             @php
-                $term1_percentage = $t1_total > 0 ? round(($t1_obt / $t1_total) * 100, 2) : 0;
-                $term2_percentage = $t2_total > 0 ? round(($t2_obt / $t2_total) * 100, 2) : 0;
-
-                $term1_grade = $gradeFromPercentage($term1_percentage);
-                $term2_grade = $gradeFromPercentage($term2_percentage);
+                $termOnePercentage = $termOneTotal > 0 ? round(($termOneObtained / $termOneTotal) * 100, 2) : 0;
+                $termTwoPercentage = $termTwoTotal > 0 ? round(($termTwoObtained / $termTwoTotal) * 100, 2) : 0;
+                $annualPercentage = $annualTotal > 0 ? round(($annualObtained / $annualTotal) * 100, 2) : 0;
+                $termOneGrade = $termOneTotal > 0 ? $gradeFromPercentage($termOnePercentage) : '';
+                $termTwoGrade = $termTwoTotal > 0 ? $gradeFromPercentage($termTwoPercentage) : '';
             @endphp
 
             <tr class="total-row">
                 <td></td>
                 <td>Total</td>
-                <td>{{ $t1_total }}</td>
-                <td>{{ $t1_obt }}</td>
+                <td>{{ $formatNumber($termOneTotal) }}</td>
+                <td>{{ $formatNumber($termOneObtained) }}</td>
                 <td></td>
                 <td></td>
-                <td>{{ $t2_total }}</td>
-                <td>{{ $t2_obt }}</td>
+                <td>{{ $formatNumber($termTwoTotal) }}</td>
+                <td>{{ $formatNumber($termTwoObtained) }}</td>
+                <td></td>
+                <td></td>
+                <td>{{ $formatNumber($annualTotal) }}</td>
+                <td>{{ $formatNumber($annualObtained) }}</td>
                 <td></td>
                 <td></td>
             </tr>
         </table>
 
-        <br>
-        <!-- FOOTER -->
-        <div class="footer">
-            <table style="padding:0px 50px;">
+        <div class="term-grid">
+            <div>
+                <div class="term-title">First Term</div>
+                <table class="term-summary">
+                    <tr>
+                        <td class="summary-label">Attendance:</td>
+                        <td class="summary-value">
+                            <span class="line-value">{{ $formatNumber($student->t1_working_days) }} / {{ $formatNumber($student->session?->t1_working_days) }}</span>
+                        </td>
+                        <td class="summary-unit"></td>
+                        <td class="summary-label">Obtained Grade:</td>
+                        <td class="summary-value"><span class="line-value">{{ $termOneGrade }}</span></td>
+                    </tr>
+                    <tr>
+                        <td class="summary-label">Highest Class Percentage:</td>
+                        <td class="summary-value">
+                            <span class="line-value">{{ number_format($highestPercentages['term_one'] ?? 0, 2) }} %</span>
+                        </td>
+                        <td class="summary-unit"></td>
+                    
+                        <td class="summary-label">Obtained Percentage:</td>
+                        <td class="summary-value">
+                            <span class="line-value">{{ number_format($termOnePercentage, 2) }} %</span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
 
-                {{-- <tr> <td>Term 1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td> --}}
-                {{-- <tr> <td>term 2</td> --}}
-                </tr>
-                <tr>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>Attendance:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b
-                            style="text-decoration: underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{{ $student->attendance }}
-                            /
-                            {{ @$student->session ? $student->session->t1_working_days + $student->session->t2_working_days : '0' }}
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</b></td>
-                    <td>Term-1
-                        Rank:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        ______________
-                    </td>
-                    <td>Term-2
-                        Rank:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        ________________</td>
-
-                </tr>
-                <tr>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>Code of Conduct: _____________</td>
-
-                    <td>Grade:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_______<u>{{ $term1_grade }}</u>______
-                    </td>
-                    <td>Grade:
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;________<u>{{ $term1_grade }}</u>_______
-                    </td>
-
-                </tr>
-                <tr>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>School Reopens: &nbsp;&nbsp;_____________</td>
-                    <td>Term One Percentage:&nbsp;&nbsp;&nbsp; &nbsp;_____<U>{{ $term1_percentage }}%</U>____
-                    </td>
-                    <td>Term Two
-                        Percentage:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;______<u>{{ $term2_percentage }}%_____
-                    </td>
-                </tr>
-            </table>
-        </div>
-        <br><br>
-
-        <table class="grading-table" width="80%" style="margin: 20px auto;">
-            <tr>
-                <td colspan="7" class="grading-system">Grading System</td>
-            </tr>
-            <tr>
-                <td>90 - 100</td>
-                <td>80 - 89</td>
-                <td>70 - 79</td>
-                <td>60 - 69</td>
-                <td>50 - 59</td>
-                <td>40 - 49</td>
-                <td>30 - 39</td>
-            </tr>
-            <tr>
-                <td>A+</td>
-                <td>A</td>
-                <td>B</td>
-                <td>C</td>
-                <td>D</td>
-                <td>E</td>
-                <td>U</td>
-            </tr>
-        </table>
-        <div class="remarks-section">
-            <div style="line-height: 1.6; text-align: justify;">
-                <b>Teacher's Remarks:</b>
-                <p>{{ $student->remarks ?? 'No remarks provided.' }}</p>
+            <div>
+                <div class="term-title">Second Term</div>
+                <table class="term-summary">
+                    <tr>
+                        <td class="summary-label">Attendance:</td>
+                        <td class="summary-value">
+                            <span class="line-value">{{ $formatNumber($student->t2_working_days) }} / {{ $formatNumber($student->session?->t2_working_days) }}</span>
+                            </td>
+                            <td class="summary-unit"></td>
+                            <td class="summary-label">Obtained Grade:</td>
+                            <td class="summary-value"><span class="line-value">{{ $termTwoGrade }}</span></td>
+                    </tr>
+                    <tr>
+                        <td class="summary-label">Highest Class Percentage:</td>
+                        <td class="summary-value">
+                            <span class="line-value">{{ number_format($highestPercentages['term_two'] ?? 0, 2) }} %</span>
+                        </td>
+                        <td class="summary-unit"></td>
+                        <td class="summary-label">Obtained Percentage:</td>
+                        <td class="summary-value">
+                            <span class="line-value">{{ number_format($termTwoPercentage, 2) }} %</span>
+                        </td>
+                    </tr>
+                </table>
             </div>
         </div>
-        <br><br><br><br>
-        <!-- SIGNATURES -->
-        <div class="signature">
-            <div class="line">Class Teacher's Signature</div>
-            <div class="line">Principal's Signature</div>
 
-            <div class="line">Parent's Signature</div>
+        <div class="bottom-grid">
+            <table class="grade-range">
+                <tr>
+                    <th colspan="7">Grade Range</th>
+                </tr>
+                <tr>
+                    <td>90 - 100</td>
+                    <td>80 - 89</td>
+                    <td>70 - 79</td>
+                    <td>60 - 69</td>
+                    <td>50 - 59</td>
+                    <td>40 - 49</td>
+                    <td>30 - 39</td>
+                </tr>
+                <tr>
+                    <td>A+</td>
+                    <td>A</td>
+                    <td>B</td>
+                    <td>C</td>
+                    <td>D</td>
+                    <td>E</td>
+                    <td>U</td>
+                </tr>
+            </table>
+
+            <div class="promoted-box">
+                <div class="promotion-row">
+                    <div class="promotion-label">Promoted To:</div>
+                    <div class="promotion-value">{{ $student->promoted_class }}</div>
+                    <div class="success-box">Congratulation</div>
+                </div>
+              
+            </div>
         </div>
 
-    </div>
+        <div class="signatures">
+            <div>
+                <div class="signature-name">{{ $classTeacherName }}</div>
+                <div class="signature-line">Class Teacher</div>
+            </div>
+            <div>
+                <div class="signature-name">{{ $principalName }}</div>
+                <div class="signature-line">Principal/Headmistress</div>
+            </div>
+            <div>
+                <div class="signature-name">{{ $executiveDirector }}</div>
+                <div class="signature-line">Executive Director Islamabad</div>
+            </div>
+        </div>
 
+        <div class="system-note">System generated report, signatures are not required</div>
+    </div>
 </body>
 
 </html>

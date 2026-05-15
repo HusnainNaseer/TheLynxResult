@@ -296,6 +296,12 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::get('/branches', [BranchController::class, 'index'])
         ->middleware('permission:view branches')
         ->name('branches.index');
+    Route::get('/branches/{branch}/edit', [BranchController::class, 'edit'])
+        ->middleware('permission:view branches')
+        ->name('branches.edit');
+    Route::put('/branches/{branch}', [BranchController::class, 'update'])
+        ->middleware('permission:view branches')
+        ->name('branches.update');
     Route::post('/branches/sync', [BranchController::class, 'sync'])
         ->middleware('permission:sync branches')
         ->name('branches.sync');

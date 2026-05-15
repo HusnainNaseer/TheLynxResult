@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Support\ErpHttp;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class BranchController extends Controller
@@ -42,16 +43,13 @@ class BranchController extends Controller
                     continue;
                 }
 
-                Branch::updateOrCreate(
-                    ['erp_branch_id' => $branch['id']],
-                    [
-                        'name' => $branch['name'] ?? $branch['branch_name'] ?? 'Branch #' . $branch['id'],
-                        'email' => $branch['email'] ?? $branch['branch_email'] ?? null,
-                        'phone' => $branch['phone'] ?? $branch['branch_phone'] ?? null,
-                        'address' => $branch['address'] ?? $branch['branch_address'] ?? null,
-                        'is_active' => $this->isActiveBranch($branch),
-                    ]
-                );
+                $localBranch = Branch::firstOrNew(['erp_branch_id' => $branch['id']]);
+                $localBranch->name = $branch['name'] ?? $branch['branch_name'] ?? 'Branch #' . $branch['id'];
+                $localBranch->email = $localBranch->email ?: ($branch['email'] ?? $branch['branch_email'] ?? null);
+                $localBranch->phone = $localBranch->phone ?: ($branch['phone'] ?? $branch['branch_phone'] ?? null);
+                $localBranch->address = $localBranch->address ?: ($branch['address'] ?? $branch['branch_address'] ?? null);
+                $localBranch->is_active = $this->isActiveBranch($branch);
+                $localBranch->save();
 
                 $synced++;
             }
@@ -66,6 +64,28 @@ class BranchController extends Controller
     public function resync()
     {
         return $this->sync();
+    }
+
+    public function edit(Branch $branch)
+    {
+        return view('branches.edit', compact('branch'));
+    }
+
+    public function update(Request $request, Branch $branch)
+    {
+        $validated = $request->validate([
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string'],
+            'principal_headmistress' => ['nullable', 'string', 'max:255'],
+            'executive_director_islamabad' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $branch->update($validated);
+
+        return redirect()
+            ->route('branches.index')
+            ->with('success', 'Branch information updated successfully.');
     }
 
     private function isActiveBranch(array $branch): bool

@@ -721,7 +721,7 @@ class TheLynxResultController extends Controller
 
     public function show($id)
     {
-        $student = StudentResult::with('marks.subject', 'session')->findOrFail($id);
+        $student = StudentResult::with('student', 'marks.subject', 'session')->findOrFail($id);
         $user = auth()->user();
 
         if (!$user->hasRole('Admin') && !$user->hasRole('Coordinator')) {
@@ -733,8 +733,40 @@ class TheLynxResultController extends Controller
         }
 
         $creator = User::findOrFail($student->created_by);
+        $branch = Branch::where('erp_branch_id', $student->branch_id)->first();
+        $subjects = ClassSubject::where('class_subjects.class_id', $student->class_id)
+            ->when($student->session_id, fn($query) => $query->where('class_subjects.session_id', $student->session_id))
+            ->join('subject_wise_marks', 'class_subjects.subject_id', '=', 'subject_wise_marks.id')
+            ->select(
+                'subject_wise_marks.id',
+                'subject_wise_marks.subject_name',
+                'subject_wise_marks.term_one_marks',
+                'subject_wise_marks.term_two_marks'
+            )
+            ->orderBy('subject_wise_marks.subject_name')
+            ->get();
 
-        return view('results.final_result_card', compact('student', 'creator'));
+        if ($subjects->isEmpty()) {
+            $subjects = $student->marks
+                ->pluck('subject')
+                ->filter()
+                ->unique('id')
+                ->sortBy('subject_name')
+                ->values();
+        }
+
+        $highestPercentages = $this->highestClassPercentagesForReport($student, $subjects);
+        $classTeacher = $student->class_teacher_finalized_by
+            ? User::find($student->class_teacher_finalized_by)
+            : null;
+
+        if (!$classTeacher) {
+            $classTeacher = $this->classTeacherForReport($student, $subjects);
+        }
+
+        $classTeacherName = $classTeacher?->name ?? $creator->name;
+
+        return view('results.final_result_card', compact('student', 'creator', 'branch', 'subjects', 'classTeacherName', 'highestPercentages'));
     }
 
     public function edit($id)
@@ -1514,6 +1546,101 @@ class TheLynxResultController extends Controller
 
         return $teacherSubjectIds->count() >= $classSubjectIds->count()
             && $classSubjectIds->diff($teacherSubjectIds)->isEmpty();
+    }
+
+    private function classTeacherForReport(StudentResult $result, $subjects): ?User
+    {
+        $subjectIds = collect($subjects)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($subjectIds->isEmpty()) {
+            return null;
+        }
+
+        $assignments = TeacherSubjectAssignment::with('teacher')
+            ->where('branch_id', $result->branch_id)
+            ->where('class_id', $result->class_id)
+            ->where('section_id', $result->section_id)
+            ->when($result->session_id, fn($query) => $query->where('session_id', $result->session_id))
+            ->get();
+
+        if ($assignments->isEmpty() && $result->session_id) {
+            $assignments = TeacherSubjectAssignment::with('teacher')
+                ->where('branch_id', $result->branch_id)
+                ->where('class_id', $result->class_id)
+                ->where('section_id', $result->section_id)
+                ->get();
+        }
+
+        foreach ($assignments->groupBy('teacher_id') as $teacherAssignments) {
+            $teacherSubjectIds = $teacherAssignments
+                ->pluck('subject_id')
+                ->map(fn($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            if ($teacherSubjectIds->count() >= $subjectIds->count() && $subjectIds->diff($teacherSubjectIds)->isEmpty()) {
+                return $teacherAssignments->first()->teacher;
+            }
+        }
+
+        return null;
+    }
+
+    private function highestClassPercentagesForReport(StudentResult $result, $subjects): array
+    {
+        $subjectTotals = collect($subjects)
+            ->mapWithKeys(fn($subject) => [
+                (int) $subject->id => [
+                    'term_one' => (float) ($subject->term_one_marks ?? 0),
+                    'term_two' => (float) ($subject->term_two_marks ?? 0),
+                ],
+            ]);
+
+        $results = StudentResult::with('marks')
+            ->where('branch_id', $result->branch_id)
+            ->where('class_id', $result->class_id)
+            ->where('section_id', $result->section_id)
+            ->when($result->session_id, fn($query) => $query->where('session_id', $result->session_id))
+            ->get();
+
+        $termOneHighest = 0;
+        $termTwoHighest = 0;
+
+        foreach ($results as $classResult) {
+            $termOneTotal = 0;
+            $termOneObtained = 0;
+            $termTwoTotal = 0;
+            $termTwoObtained = 0;
+
+            foreach ($classResult->marks as $mark) {
+                $totals = $subjectTotals->get((int) $mark->subject_id, []);
+                $termOneMarkTotal = (float) ($mark->term_one_total ?? $totals['term_one'] ?? 0);
+                $termTwoMarkTotal = (float) ($mark->term_two_total ?? $totals['term_two'] ?? 0);
+
+                $termOneTotal += $termOneMarkTotal;
+                $termOneObtained += (float) ($mark->term_one_mark ?? 0);
+                $termTwoTotal += $termTwoMarkTotal;
+                $termTwoObtained += (float) ($mark->term_two_mark ?? 0);
+            }
+
+            if ($termOneTotal > 0) {
+                $termOneHighest = max($termOneHighest, round(($termOneObtained / $termOneTotal) * 100, 2));
+            }
+
+            if ($termTwoTotal > 0) {
+                $termTwoHighest = max($termTwoHighest, round(($termTwoObtained / $termTwoTotal) * 100, 2));
+            }
+        }
+
+        return [
+            'term_one' => $termOneHighest,
+            'term_two' => $termTwoHighest,
+        ];
     }
 
     private function submittedSubjectIds(array $subjects)

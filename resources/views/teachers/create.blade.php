@@ -225,6 +225,41 @@
                                             @enderror
                                         </div>
                                     </div>
+
+                                    <div class="row g-3 mt-2">
+                                        <div class="col-12">
+                                            <h6 class="text-primary mb-0">
+                                                <i class="ri-building-line"></i> Branch Information
+                                            </h6>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label for="branch_name" class="form-label">Branch Name *</label>
+                                            <input type="text" class="form-control" id="branch_name"
+                                                name="branch_name" value="{{ old('branch_name') }}"
+                                                placeholder="Select branch first" readonly>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label for="branch_email" class="form-label">Branch Email *</label>
+                                            <input type="email" class="form-control" id="branch_email"
+                                                name="branch_email" value="{{ old('branch_email') }}"
+                                                placeholder="branch@example.com" readonly>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label for="branch_phone" class="form-label">Branch Phone *</label>
+                                            <input type="text" class="form-control" id="branch_phone"
+                                                name="branch_phone" value="{{ old('branch_phone') }}"
+                                                placeholder="Enter branch phone" readonly>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label for="branch_address" class="form-label">Branch Address *</label>
+                                            <textarea class="form-control" id="branch_address" name="branch_address" rows="1"
+                                                placeholder="Enter branch address" readonly>{{ old('branch_address') }}</textarea>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <hr class="my-4">
@@ -380,6 +415,10 @@
             const previewDesg = document.getElementById('previewDesignation');
             const hiddenName = document.getElementById('employee_name');
             const hiddenEmail = document.getElementById('employee_email');
+            const branchNameInput = document.getElementById('branch_name');
+            const branchEmailInput = document.getElementById('branch_email');
+            const branchPhoneInput = document.getElementById('branch_phone');
+            const branchAddressInput = document.getElementById('branch_address');
             const previewImage = document.getElementById('previewImage');
             const noPicture = document.getElementById('noPicture');
             const passInput = document.getElementById('password');
@@ -429,6 +468,19 @@
                 select.appendChild(placeholder);
             }
 
+            function findLocalBranch(branchId) {
+                return localBranches.find(branch => String(branch.id) === String(branchId)) || null;
+            }
+
+            function fillBranchInformation(branchId) {
+                const branch = findLocalBranch(branchId);
+
+                branchNameInput.value = branch ? (branch.branch_name || branch.name || '') : '';
+                branchEmailInput.value = branch ? (branch.email || '') : '';
+                branchPhoneInput.value = branch ? (branch.phone || '') : '';
+                branchAddressInput.value = branch ? (branch.address || '') : '';
+            }
+
             /* ── 1. Load local branches on page load ─────────────────── */
             branchLoader.classList.add('show');
             setStatus(branchStatus, 'Loading branches…', '');
@@ -447,6 +499,7 @@
                 if (localBranches.length === 1 && !branchSel.value) {
                     branchSel.selectedIndex = 1;
                 }
+                fillBranchInformation(branchSel.value);
             } else {
                 setStatus(branchStatus, 'No branches found in local database', 'warning');
             }
@@ -457,6 +510,7 @@
             branchSel.addEventListener('change', function() {
                 const branchId = this.value;
                 refreshSteps();
+                fillBranchInformation(branchId);
                 branchSel.classList.remove('is-invalid');
 
                 if (!branchId) {

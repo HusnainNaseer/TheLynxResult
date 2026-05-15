@@ -171,6 +171,8 @@ class TeachersController extends Controller
                 ]);
             }
 
+            $localBranch = Branch::where('erp_branch_id', $validated['branch_id'])->first();
+
             // Use API data if available, fall back to the employee selected in the form.
             $fallbackName = $validated['employee_name'] ?: (strtok($validated['employee_email'], '@') ?: 'Unknown');
             $name  = $employeeData['name'] ?? $fallbackName;
@@ -199,10 +201,10 @@ class TeachersController extends Controller
                 'session_id' => $activeSession?->id,
                 'erp_session_id' => $activeSession ? ($activeSession->erp_session_id ?: (string) $activeSession->id) : null,
                 'erp_picture' => $employeeData['employee']['profile_img'] ?? null,
-                'branch_name' => $employeeData['employee']['branchdetail']['name'] ?? null,
-                'branch_email' => $employeeData['employee']['userbranch']['email'] ?? null,
-                'branch_address' => $employeeData['employee']['branchdetail']['address'] ?? null,
-                'branch_phone' => $employeeData['employee']['branchdetail']['phone_no'] ?? null,
+                'branch_name' => $localBranch?->name ?? $employeeData['employee']['branchdetail']['name'] ?? null,
+                'branch_email' => $localBranch?->email ?? $employeeData['employee']['userbranch']['email'] ?? null,
+                'branch_address' => $localBranch?->address ?? $employeeData['employee']['branchdetail']['address'] ?? null,
+                'branch_phone' => $localBranch?->phone ?? $employeeData['employee']['branchdetail']['phone_no'] ?? null,
             ];
 
             foreach ($optionalColumns as $column => $value) {

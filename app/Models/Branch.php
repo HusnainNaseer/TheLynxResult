@@ -12,6 +12,8 @@ class Branch extends Model
         'email',
         'phone',
         'address',
+        'principal_headmistress',
+        'executive_director_islamabad',
         'is_active',
     ];
 }

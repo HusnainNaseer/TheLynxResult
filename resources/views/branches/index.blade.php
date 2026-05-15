@@ -139,7 +139,7 @@
                                     <i class="ri-search-line me-1 text-primary"></i>Search
                                 </label>
                                 <input type="text" class="form-control" id="searchInput"
-                                    placeholder="Search branch name, email, phone, or address">
+                                    placeholder="Search branch name, email, phone, address, or head">
                             </div>
 
                             <div class="col-md-3">
@@ -182,13 +182,15 @@
                                         <th>Branch</th>
                                         <th>Contact</th>
                                         <th>Address</th>
+                                        <th>Principal / Headmistress</th>
+                                        <th>Executive Director</th>
                                         <th>Status</th>
-                                        <th>Updated</th>
+                                        <th style="width: 100px;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="branchesTable">
                                     @foreach ($branches as $branch)
-                                        <tr data-search="{{ strtolower($branch->name . ' ' . $branch->email . ' ' . $branch->phone . ' ' . $branch->address) }}"
+                                        <tr data-search="{{ strtolower($branch->name . ' ' . $branch->email . ' ' . $branch->phone . ' ' . $branch->address . ' ' . $branch->principal_headmistress . ' ' . $branch->executive_director_islamabad) }}"
                                             data-status="{{ $branch->is_active ? 'active' : 'inactive' }}">
                                             <td>
                                                 <div class="branch-name">{{ $branch->name }}</div>
@@ -199,6 +201,8 @@
                                                 <div class="branch-meta">{{ $branch->phone ?: '-' }}</div>
                                             </td>
                                             <td class="branch-address">{{ $branch->address ?: '-' }}</td>
+                                            <td>{{ $branch->principal_headmistress ?: '-' }}</td>
+                                            <td>{{ $branch->executive_director_islamabad ?: '-' }}</td>
                                             <td>
                                                 @if ($branch->is_active)
                                                     <span class="badge bg-success-subtle text-success">Active</span>
@@ -206,8 +210,11 @@
                                                     <span class="badge bg-secondary-subtle text-secondary">Inactive</span>
                                                 @endif
                                             </td>
-                                            <td class="branch-meta">
-                                                {{ $branch->updated_at?->format('d M Y, h:i A') ?? '-' }}
+                                            <td style="width: 100px;">
+                                                <a href="{{ route('branches.edit', $branch) }}"
+                                                    class="btn btn-sm btn-outline-primary" title="Edit branch">
+                                                    <i class="ri-edit-2-line"></i>
+                                                </a>
                                             </td>
                                         </tr>
                                     @endforeach
