@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Lynx School - Result Management System</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/lynx_logo') }}">
+    <link rel="icon" type="image/png" href="{{ asset('public/images/lynx_logo.png') }}">
     <link
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Poppins:wght@300;400;500;600&display=swap"
         rel="stylesheet">
@@ -44,7 +44,7 @@
         .landing-side {
             background-image:
                 linear-gradient(360deg, rgb(220 20 60 / 52%), #1a1a2ee8),
-                url('{{ asset('images/bgimage.jpeg') }}');
+                url('{{ asset('public/images/bgimage.jpeg') }}');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;

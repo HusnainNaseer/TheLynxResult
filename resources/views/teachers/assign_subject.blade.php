@@ -125,6 +125,9 @@
                             </div>
 
                             <div class="col-12 text-end assign-action">
+                                <button type="button" id="cancelEditBtn" class="btn btn-light d-none">
+                                    Cancel Edit
+                                </button>
                                 <button type="button" id="assignBtn" class="btn btn-primary" disabled>
                                     <i class="ri-add-line me-1"></i>
                                     Add Subject(s)
@@ -163,13 +166,17 @@
                                             <td class="group-subjects">{{ $group->subject_names->implode(', ') }}</td>
                                             <td class="text-center">
                                                 @if (!auth()->user()->hasRole('Coordinator') || (string) $group->branch_id === (string) auth()->user()->branch_id)
-                                                <button
-                                                    class="btn btn-danger btn-sm btn-remove"
-                                                    data-ids="{{ $group->ids->implode(',') }}"
-                                                    data-group-key="{{ $group->key }}"
-                                                >
-                                                    <i class="ri-delete-bin-line"></i>
-                                                </button>
+                                                    <div class="d-flex justify-content-center gap-1">
+                                                        <button class="btn btn-warning btn-sm btn-edit"
+                                                            data-group-key="{{ $group->key }}" title="Edit">
+                                                            <i class="ri-edit-line"></i>
+                                                        </button>
+                                                        <button class="btn btn-danger btn-sm btn-remove"
+                                                            data-ids="{{ $group->ids->implode(',') }}"
+                                                            data-group-key="{{ $group->key }}" title="Delete">
+                                                            <i class="ri-delete-bin-line"></i>
+                                                        </button>
+                                                    </div>
                                                 @else
                                                     <span class="text-muted small">View only</span>
                                                 @endif
@@ -204,10 +211,16 @@ $(document).ready(function () {
     const allValue = '__all__';
     let availableSubjects = [];
     let allClassSubjects = [];
+    let editGroupKey = null;
+    let editingSubjectIds = new Set();
     const localBranches = @json($branches);
+    const assignmentGroupsByKey = @json($assignmentGroups->mapWithKeys(fn($group) => [$group->key => $group])->toArray());
     const assignedSubjectsByGroup = @json(
         $assignmentGroups->mapWithKeys(fn($group) => [$group->key => $group->subject_ids])->toArray()
     );
+    const storeUrl = '{{ route("assign-subjects.store") }}';
+    const updateGroupUrl = '{{ route("assign-subjects.update-group") }}';
+    const deleteUrlTemplate = '{{ route("assign-subjects.destroy", ["assignment" => "__ID__"]) }}';
 
     $('#subjectSelect').select2({
         width: '100%',
@@ -288,7 +301,9 @@ $(document).ready(function () {
     }
 
     function appendSubjectOption(subject) {
-        const suffix = subject.disabled && subject.assigned_to
+        const subjectId = String(subject.id);
+        const disabled = subject.disabled && !editingSubjectIds.has(subjectId);
+        const suffix = disabled && subject.assigned_to
             ? ' - assigned to ' + subject.assigned_to
             : '';
 
@@ -296,7 +311,7 @@ $(document).ready(function () {
             <option
                 value="${escapeHtml(subject.id)}"
                 data-name="${escapeHtml(subject.name)}"
-                ${subject.disabled ? 'disabled' : ''}
+                ${disabled ? 'disabled' : ''}
             >
                 ${escapeHtml(subject.name + suffix)}
             </option>
@@ -328,6 +343,18 @@ $(document).ready(function () {
         assignedSubjectsByGroup[key] = mergedSubjectIds;
 
         if (existingRow.length) {
+            if (group.replace) {
+                const replacementIds = incomingSubjectIds;
+                const replacementNames = incomingSubjectNames;
+                const replacementDeleteIds = (group.ids || []).map(String);
+
+                assignedSubjectsByGroup[key] = replacementIds;
+                assignmentGroupsByKey[key] = group;
+                existingRow.find('.group-subjects').text(replacementNames.join(', '));
+                existingRow.find('.btn-remove').attr('data-ids', replacementDeleteIds.join(',')).data('ids', replacementDeleteIds.join(','));
+                return;
+            }
+
             const currentNames = existingRow.find('.group-subjects').text()
                 .split(',')
                 .map(name => name.trim())
@@ -340,6 +367,12 @@ $(document).ready(function () {
 
             existingRow.find('.group-subjects').text(mergedNames.join(', '));
             existingRow.find('.btn-remove').attr('data-ids', mergedDeleteIds.join(',')).data('ids', mergedDeleteIds.join(','));
+            existingRow.find('.btn-edit').data('group-key', key).attr('data-group-key', key);
+            assignmentGroupsByKey[key] = Object.assign({}, group, {
+                ids: mergedDeleteIds,
+                subject_ids: mergedSubjectIds,
+                subject_names: mergedNames
+            });
             return;
         }
 
@@ -354,12 +387,61 @@ $(document).ready(function () {
                 <td>${escapeHtml(group.section_name)}</td>
                 <td class="group-subjects">${escapeHtml((group.subject_names || []).join(', '))}</td>
                 <td class="text-center">
-                    <button class="btn btn-danger btn-sm btn-remove" data-ids="${escapeHtml(deleteIds)}" data-group-key="${escapeHtml(key)}">
-                        <i class="ri-delete-bin-line"></i>
-                    </button>
+                    <div class="d-flex justify-content-center gap-1">
+                        <button class="btn btn-warning btn-sm btn-edit" data-group-key="${escapeHtml(key)}" title="Edit">
+                            <i class="ri-edit-line"></i>
+                        </button>
+                        <button class="btn btn-danger btn-sm btn-remove" data-ids="${escapeHtml(deleteIds)}" data-group-key="${escapeHtml(key)}" title="Delete">
+                            <i class="ri-delete-bin-line"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `);
+
+        assignmentGroupsByKey[key] = group;
+    }
+
+    function resetEditMode() {
+        editGroupKey = null;
+        editingSubjectIds = new Set();
+        $('#branchSelect, #classSelect, #sectionSelect').prop('disabled', false);
+        $('#assignBtn').html('<i class="ri-add-line me-1"></i> Add Subject(s)').removeClass('btn-warning').addClass('btn-primary');
+        $('#cancelEditBtn').addClass('d-none');
+    }
+
+    function waitForOption(select, value) {
+        return new Promise((resolve, reject) => {
+            let tries = 0;
+            const timer = setInterval(() => {
+                if (select.find(`option[value="${value}"]`).length) {
+                    clearInterval(timer);
+                    resolve();
+                }
+
+                if (++tries > 40) {
+                    clearInterval(timer);
+                    reject();
+                }
+            }, 100);
+        });
+    }
+
+    function waitForSubjects() {
+        return new Promise((resolve, reject) => {
+            let tries = 0;
+            const timer = setInterval(() => {
+                if (!$('#subjectSelect').prop('disabled') && $('#subjectSelect option').length > 1) {
+                    clearInterval(timer);
+                    resolve();
+                }
+
+                if (++tries > 40) {
+                    clearInterval(timer);
+                    reject();
+                }
+            }, 100);
+        });
     }
 
     localBranches.forEach(branch => {
@@ -462,7 +544,7 @@ $(document).ready(function () {
                 $('#subjectSelect').prop('disabled', false);
 
                 $('#subjectSelect option[value="' + allValue + '"]')
-                    .prop('disabled', !!response.class_teacher_assigned || assignedSubjects > 0)
+                    .prop('disabled', !!response.class_teacher_assigned)
                     .text(response.class_teacher_assigned
                         ? 'All subjects - assigned to ' + (response.class_teacher_name || 'class teacher')
                         : 'All subjects');
@@ -519,7 +601,7 @@ $(document).ready(function () {
         $('#assignBtn').prop('disabled', true);
 
         $.ajax({
-            url: '{{ route("assign-subjects.store") }}',
+            url: editGroupKey ? updateGroupUrl : storeUrl,
             type: 'POST',
             data: {
                 teacher_id: teacherId,
@@ -535,9 +617,14 @@ $(document).ready(function () {
             },
             success: function (res) {
                 if (res.success) {
+                    if (editGroupKey) {
+                        res.group.replace = true;
+                    }
+
                     upsertAssignmentGroup(res.group);
                     refreshAssignmentCount();
                     showAlert(res.message, 'success');
+                    resetEditMode();
                     $('#branchSelect').val('').trigger('change');
                 }
             },
@@ -548,6 +635,42 @@ $(document).ready(function () {
         });
     });
 
+    $(document).on('click', '.btn-edit', async function () {
+        const groupKey = $(this).data('group-key');
+        const group = assignmentGroupsByKey[groupKey];
+
+        if (!group) {
+            showAlert('Could not load this assignment for editing.');
+            return;
+        }
+
+        editGroupKey = groupKey;
+        editingSubjectIds = new Set((group.subject_ids || []).map(String));
+        $('#cancelEditBtn').removeClass('d-none');
+        $('#assignBtn').html('<i class="ri-save-3-line me-1"></i> Update Assignment').removeClass('btn-primary').addClass('btn-warning');
+
+        try {
+            $('#branchSelect').val(String(group.branch_id)).trigger('change');
+            await waitForOption($('#classSelect'), String(group.class_id));
+            $('#classSelect').val(String(group.class_id)).trigger('change');
+            await waitForOption($('#sectionSelect'), String(group.section_id));
+            $('#sectionSelect').val(String(group.section_id)).trigger('change');
+            await waitForSubjects();
+            $('#subjectSelect').val((group.subject_ids || []).map(String)).trigger('change.select2');
+            $('#branchSelect, #classSelect, #sectionSelect').prop('disabled', true);
+            checkButton();
+            showAlert('Edit the selected subjects, then click Update Assignment.', 'info');
+        } catch (e) {
+            resetEditMode();
+            showAlert('Could not prepare this assignment for editing.');
+        }
+    });
+
+    $('#cancelEditBtn').on('click', function () {
+        resetEditMode();
+        $('#branchSelect').val('').trigger('change');
+    });
+
     $(document).on('click', '.btn-remove', function () {
         const ids = String($(this).data('ids') || '').split(',').filter(Boolean);
         const groupKey = $(this).data('group-key');
@@ -556,12 +679,17 @@ $(document).ready(function () {
         if (!ids.length) return;
 
         Promise.all(ids.map(id => $.ajax({
-            url: `/assign-subjects/${id}`,
+            url: deleteUrlTemplate.replace('__ID__', id),
             type: 'DELETE',
             data: { _token: CSRF }
         }))).then(function () {
             $(rowSelector(groupKey)).remove();
             delete assignedSubjectsByGroup[groupKey];
+            delete assignmentGroupsByKey[groupKey];
+            if (editGroupKey === groupKey) {
+                resetEditMode();
+                $('#branchSelect').val('').trigger('change');
+            }
             refreshAssignmentCount();
 
             if ($('#assignmentsBody tr[id^="row-"]').length === 0) {
@@ -575,6 +703,8 @@ $(document).ready(function () {
             }
 
             showAlert('Assignment removed successfully.', 'success');
+        }).catch(function (xhr) {
+            showAlert(xhr.responseJSON?.message ?? 'Could not remove assignment.');
         });
     });
 });

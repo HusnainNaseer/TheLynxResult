@@ -281,6 +281,7 @@ Route::middleware(['auth', 'role:Admin|Coordinator'])->prefix('assign-subjects')
 
     // Store a new assignment
     Route::post('/store',           [AssignSubjectController::class, 'store'])->name('store');
+    Route::post('/update-group',    [AssignSubjectController::class, 'updateGroup'])->name('update-group');
 
     // Delete an assignment
     Route::delete('/{assignment}',  [AssignSubjectController::class, 'destroy'])->name('destroy');

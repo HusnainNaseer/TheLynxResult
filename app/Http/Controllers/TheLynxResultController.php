@@ -756,15 +756,8 @@ class TheLynxResultController extends Controller
         }
 
         $highestPercentages = $this->highestClassPercentagesForReport($student, $subjects);
-        $classTeacher = $student->class_teacher_finalized_by
-            ? User::find($student->class_teacher_finalized_by)
-            : null;
-
-        if (!$classTeacher) {
-            $classTeacher = $this->classTeacherForReport($student, $subjects);
-        }
-
-        $classTeacherName = $classTeacher?->name ?? $creator->name;
+        $classTeacher = $this->classTeacherForReport($student, $subjects);
+        $classTeacherName = $classTeacher?->name ?? '';
 
         return view('results.final_result_card', compact('student', 'creator', 'branch', 'subjects', 'classTeacherName', 'highestPercentages'));
     }
@@ -1305,7 +1298,7 @@ class TheLynxResultController extends Controller
     private function canEditResult(User $user, StudentResult $result): bool
     {
         if ($result->workflow_status === 'coordinator_approved') {
-            return false;
+            return $user->hasRole('Admin');
         }
 
         if ($user->hasRole('Admin') || $user->hasRole('Coordinator')) {
@@ -1379,6 +1372,8 @@ class TheLynxResultController extends Controller
         if (!$this->canAccessResultSection($user, $result->branch_id, $result->class_id, $result->section_id)) {
             return false;
         }
+
+        $this->recalculateStudentResult($result);
 
         $result->update([
             'workflow_status' => 'coordinator_approved',
@@ -1713,6 +1708,10 @@ class TheLynxResultController extends Controller
         $marks = $result->marks()->get();
         $grandTermOne = $marks->sum(fn($mark) => (float) $mark->term_one_mark);
         $grandTermTwo = $marks->sum(fn($mark) => (float) $mark->term_two_mark);
+        $termOneTotal = $marks->sum(fn($mark) => (float) $mark->term_one_total);
+        $termTwoTotal = $marks->sum(fn($mark) => (float) $mark->term_two_total);
+        $termOnePercentage = $this->calculatePercentage($grandTermOne, $termOneTotal);
+        $termTwoPercentage = $this->calculatePercentage($grandTermTwo, $termTwoTotal);
         $totalPercentage = 0;
 
         foreach ($marks as $mark) {
@@ -1726,7 +1725,9 @@ class TheLynxResultController extends Controller
 
         $result->update([
             'grand_term_one' => $grandTermOne,
+            'percentage_term_one' => round($termOnePercentage, 2),
             'grand_term_two' => $grandTermTwo,
+            'percentage_term_two' => round($termTwoPercentage, 2),
             'grand_total' => $grandTermOne + $grandTermTwo,
             'overall_percentage' => round($overallPercentage, 2),
             'overall_grade' => $this->calculateGrade($overallPercentage),

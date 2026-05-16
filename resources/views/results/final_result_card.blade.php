@@ -15,28 +15,42 @@
             background: #efefef;
             color: #000;
             font-family: Calibri, Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
         .sheet {
+            position: relative;
             width: 1120px;
-            min-height: 780px;
+            min-height: 740px;
             margin: 18px auto;
             background: #fff;
             border: 0px solid #111;
-            padding: 46px 112px 38px;
+            padding: 46px 112px 52px;
         }
 
         .header {
             position: relative;
             text-align: center;
+            min-height: 96px;
+            padding: 0 84px;
+        }
+
+        .school-logo,
+        .result-qr {
+            position: absolute;
+            top: 0;
+            width: 58px;
+            height: 58px;
+            object-fit: contain;
         }
 
         .school-logo {
-            position: absolute;
             left: 8px;
-            top: 0;
-            width: 58px;
-            height: auto;
+        }
+
+        .result-qr {
+            right: 8px;
         }
 
         .school-name {
@@ -221,6 +235,7 @@
         .promotion-value {
             min-height: 20px;
             border-bottom: 1px solid #000;
+            text-align: center;
         }
 
         .success-box {
@@ -241,7 +256,7 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 90px;
-            margin-top: 34px;
+            margin-top: 28px;
             font-size: 8px;
             text-align: center;
         }
@@ -257,21 +272,42 @@
         }
 
         .system-note {
-            margin-top: 30px;
+            position: absolute;
+            left: 112px;
+            bottom: 18px;
+            text-align: left;
             font-size: 7px;
         }
 
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+
         @media print {
+            html,
+            body {
+                width: 297mm;
+                min-height: 210mm;
+            }
+
             body {
                 background: #fff;
             }
 
             .sheet {
-                width: 100%;
-                min-height: auto;
-                margin: 0;
-                border: 2px solid #111;
+                width: 297mm;
+                min-height: 210mm;
+                margin: 0 auto;
+                border: 0;
+                padding: 12mm 24mm 14mm;
                 page-break-after: always;
+            }
+
+            .system-note {
+                left: 24mm;
+                bottom: 5mm;
+                text-align: left;
             }
         }
     </style>
@@ -283,8 +319,8 @@
         $branchEmail = $branch?->email ?? $creator->branch_email ?? 'N/A';
         $branchPhone = $branch?->phone ?? $creator->branch_phone ?? 'N/A';
         $branchAddress = $branch?->address ?? $creator->branch_address ?? 'N/A';
-        $principalName = $branch?->principal_headmistress ?: 'Principal/Headmistress';
-        $executiveDirector = $branch?->executive_director_islamabad ?: 'Executive Director Islamabad';
+        $principalName = $branch?->principal_headmistress ?: '';
+        $executiveDirector = $branch?->executive_director_islamabad ?: '';
         $marksBySubject = $student->marks->keyBy(fn($mark) => (int) $mark->subject_id);
 
         $gradeFromPercentage = function ($percentage) {
@@ -333,11 +369,14 @@
         $termTwoObtained = 0;
         $annualTotal = 0;
         $annualObtained = 0;
+        $verificationUrl = route('results.show', $student->id);
+        $qrCodeUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=58x58&margin=0&data=' . urlencode($verificationUrl);
     @endphp
 
     <div class="sheet">
         <div class="header">
-            <img src="{{ asset('images/lynx_logo.png') }}" alt="The Lynx School" class="school-logo">
+            <img src="{{ asset('public/images/lynx_logo.png') }}" alt="The Lynx School" class="school-logo">
+            <img src="{{ $qrCodeUrl }}" alt="Result verification QR" class="result-qr">
             <h1 class="school-name">The Lynx School</h1>
             <div class="branch-name">{{ $branchName }}</div>
             <div class="branch-meta">
@@ -560,7 +599,7 @@
             </div>
         </div>
 
-        <div class="system-note">System generated report, signatures are not required</div>
+        <div class="system-note">system generated report , signatures are not required</div>
     </div>
 </body>
 

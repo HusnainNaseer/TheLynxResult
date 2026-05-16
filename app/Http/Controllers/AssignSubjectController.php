@@ -176,13 +176,6 @@ class AssignSubjectController extends Controller
         }
 
         if ($isClassTeacherAssignment) {
-            if ($allSectionAssignments->isNotEmpty()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Some subjects are already assigned to subject teachers. Assign remaining subjects individually.',
-                ], 422);
-            }
-
             $requestedSubjectIds = $allowedSubjectIds->values();
         }
 
@@ -190,9 +183,11 @@ class AssignSubjectController extends Controller
             ? $allSectionAssignments->where('teacher_id', '!=', $classTeacherAssignment->teacher_id)->values()
             : $allSectionAssignments;
 
-        $existingAssignments = $subjectTeacherAssignments
-            ->whereIn('subject_id', $requestedSubjectIds)
-            ->values();
+        $existingAssignments = $isClassTeacherAssignment
+            ? collect()
+            : $subjectTeacherAssignments
+                ->whereIn('subject_id', $requestedSubjectIds)
+                ->values();
 
         if ($existingAssignments->isNotEmpty()) {
             $firstAssignment = $existingAssignments->first();
@@ -274,6 +269,157 @@ class AssignSubjectController extends Controller
     // ─────────────────────────────────────────────
     // Local DB helpers used by the assignment form.
     // ─────────────────────────────────────────────
+
+    public function updateGroup(Request $request)
+    {
+        $validated = $request->validate([
+            'teacher_id' => 'required|exists:users,id',
+            'branch_id' => 'required|integer',
+            'class_id' => 'required|integer',
+            'section_id' => 'required|integer',
+            'subject_ids' => 'required|array|min:1',
+            'subject_ids.*' => 'required|integer',
+        ]);
+
+        $activeSession = Session::active()->first();
+
+        if (!$activeSession) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please activate a session before updating assignments.',
+            ], 422);
+        }
+
+        BranchScope::abortIfCoordinatorOutside($validated['branch_id']);
+
+        $teacher = User::role('Teacher')
+            ->where('id', $validated['teacher_id'])
+            ->when(BranchScope::coordinatorBranchId(), fn($query, $branchId) => $query->where('branch_id', $branchId))
+            ->first();
+
+        if (!$teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Selected teacher does not belong to your branch.',
+            ], 403);
+        }
+
+        $allowedSubjectIds = ClassSubject::where('class_id', $validated['class_id'])
+            ->where('session_id', $activeSession->id)
+            ->where('branch_id', $validated['branch_id'])
+            ->pluck('subject_id')
+            ->map(fn($id) => (int) $id);
+
+        $requestedSubjectIds = collect($validated['subject_ids'])
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($requestedSubjectIds->diff($allowedSubjectIds)->isNotEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'One or more selected subjects are not assigned to this class.',
+            ], 422);
+        }
+
+        $sectionAssignments = TeacherSubjectAssignment::where([
+            'branch_id' => $validated['branch_id'],
+            'class_id' => $validated['class_id'],
+            'section_id' => $validated['section_id'],
+            'session_id' => $activeSession->id,
+        ])
+            ->get();
+
+        $classTeacherAssignment = $this->findClassTeacherAssignment($sectionAssignments, $allowedSubjectIds);
+        $subjectTeacherAssignments = $classTeacherAssignment
+            ? $sectionAssignments->where('teacher_id', '!=', $classTeacherAssignment->teacher_id)->values()
+            : $sectionAssignments;
+
+        $conflictingAssignment = $subjectTeacherAssignments
+            ->where('teacher_id', '!=', $teacher->id)
+            ->whereIn('subject_id', $requestedSubjectIds)
+            ->first();
+
+        if ($conflictingAssignment) {
+            $teacherName = User::find($conflictingAssignment->teacher_id)?->name ?? 'another teacher';
+
+            return response()->json([
+                'success' => false,
+                'message' => 'This subject of this section is already assigned to ' . $teacherName . '.',
+            ], 422);
+        }
+
+        $currentAssignments = TeacherSubjectAssignment::where([
+            'teacher_id' => $teacher->id,
+            'branch_id' => $validated['branch_id'],
+            'class_id' => $validated['class_id'],
+            'section_id' => $validated['section_id'],
+            'session_id' => $activeSession->id,
+        ])->get();
+
+        $currentSubjectIds = $currentAssignments->pluck('subject_id')->map(fn($id) => (int) $id);
+        $removeAssignmentIds = $currentAssignments
+            ->whereNotIn('subject_id', $requestedSubjectIds)
+            ->pluck('id');
+
+        if ($removeAssignmentIds->isNotEmpty()) {
+            TeacherSubjectAssignment::whereIn('id', $removeAssignmentIds)->delete();
+        }
+
+        $missingSubjectIds = $requestedSubjectIds->diff($currentSubjectIds)->values();
+        $subjects = SubjectWiseMarks::whereIn('id', $missingSubjectIds)
+            ->where('session_id', $activeSession->id)
+            ->get()
+            ->keyBy('id');
+
+        $branchName = Branch::where('erp_branch_id', $validated['branch_id'])->value('name');
+        $className = Classes::where('id', $validated['class_id'])->value('name');
+        $sectionName = \App\Models\Section::where('id', $validated['section_id'])->value('name');
+
+        foreach ($missingSubjectIds as $subjectId) {
+            TeacherSubjectAssignment::create([
+                'teacher_id' => $teacher->id,
+                'session_id' => $activeSession->id,
+                'erp_session_id' => $activeSession->erp_session_id ?: (string) $activeSession->id,
+                'branch_id' => $validated['branch_id'],
+                'branch_name' => $branchName,
+                'class_id' => $validated['class_id'],
+                'class_name' => $className,
+                'section_id' => $validated['section_id'],
+                'section_name' => $sectionName,
+                'subject_id' => $subjectId,
+                'subject_name' => $subjects->get($subjectId)?->subject_name,
+                'assigned_by' => auth()->id(),
+            ]);
+        }
+
+        $updatedAssignments = TeacherSubjectAssignment::where([
+            'teacher_id' => $teacher->id,
+            'branch_id' => $validated['branch_id'],
+            'class_id' => $validated['class_id'],
+            'section_id' => $validated['section_id'],
+            'session_id' => $activeSession->id,
+        ])
+            ->orderBy('subject_name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Assignment updated successfully.',
+            'group' => [
+                'key' => $validated['branch_id'] . '|' . $validated['class_id'] . '|' . $validated['section_id'],
+                'ids' => $updatedAssignments->pluck('id')->values(),
+                'branch_id' => $validated['branch_id'],
+                'branch_name' => $branchName,
+                'class_id' => $validated['class_id'],
+                'class_name' => $className,
+                'section_id' => $validated['section_id'],
+                'section_name' => $sectionName,
+                'subject_ids' => $updatedAssignments->pluck('subject_id')->map(fn($id) => (string) $id)->values(),
+                'subject_names' => $updatedAssignments->pluck('subject_name')->filter()->values(),
+            ],
+        ]);
+    }
 
     /** GET /assign-subjects/api/branches */
     public function apiBranches()
