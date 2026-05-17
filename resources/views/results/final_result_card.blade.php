@@ -26,7 +26,7 @@
             margin: 18px auto;
             background: #fff;
             border: 0px solid #111;
-            padding: 46px 112px 52px;
+            padding: 46px 112px 34px;
         }
 
         .header {
@@ -233,7 +233,6 @@
         }
 
         .promotion-value {
-            min-height: 20px;
             border-bottom: 1px solid #000;
             text-align: center;
         }
@@ -256,7 +255,7 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 90px;
-            margin-top: 28px;
+            margin-top: 18px;
             font-size: 8px;
             text-align: center;
         }
@@ -274,7 +273,7 @@
         .system-note {
             position: absolute;
             left: 112px;
-            bottom: 18px;
+            bottom: 8px;
             text-align: left;
             font-size: 7px;
         }
@@ -300,13 +299,13 @@
                 min-height: 210mm;
                 margin: 0 auto;
                 border: 0;
-                padding: 12mm 24mm 14mm;
+                padding: 12mm 24mm 9mm;
                 page-break-after: always;
             }
 
             .system-note {
                 left: 24mm;
-                bottom: 5mm;
+                bottom: 3mm;
                 text-align: left;
             }
         }
@@ -369,13 +368,13 @@
         $termTwoObtained = 0;
         $annualTotal = 0;
         $annualObtained = 0;
-        $verificationUrl = route('results.show', $student->id);
+        $verificationUrl = $publicResultUrl ?? route('public.result', $encodedResultId);
         $qrCodeUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=58x58&margin=0&data=' . urlencode($verificationUrl);
     @endphp
 
     <div class="sheet">
         <div class="header">
-            <img src="{{ asset('public/images/lynx_logo.png') }}" alt="The Lynx School" class="school-logo">
+            <img src="{{ asset('images/lynx_logo.png') }}" alt="The Lynx School" class="school-logo">
             <img src="{{ $qrCodeUrl }}" alt="Result verification QR" class="result-qr">
             <h1 class="school-name">The Lynx School</h1>
             <div class="branch-name">{{ $branchName }}</div>

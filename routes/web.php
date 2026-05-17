@@ -66,6 +66,9 @@ Route::get('/', function () {
 Route::get('/teacher/search', [TeachersController::class, 'search_teacher'])
     ->name('teacher.search');
 
+Route::get('/public_result/{encodedId}', [TheLynxResultController::class, 'publicResult'])
+    ->name('public.result');
+
 /*
 |--------------------------------------------------------------------------
 | DASHBOARD (ALREADY ADMIN AWARE ✔)
@@ -212,7 +215,7 @@ Route::middleware('auth', 'role:Admin|Teacher|Coordinator')->group(function () {
         ->name('results.forward');
 
     Route::post('/results/{id}/coordinator-approve', [TheLynxResultController::class, 'coordinatorApprove'])
-        ->middleware('role:Coordinator')
+        ->middleware('role:Admin|Coordinator')
         ->name('results.coordinator-approve');
 
     Route::get('/results/{id}', [TheLynxResultController::class, 'show'])

@@ -22,10 +22,9 @@
         <!-- User details -->
         <div class="user-profile text-center mt-3">
             <div class="">
-                <img src="{{ Auth::user()->profile_picture
-                    ? asset('storage/' . Auth::user()->profile_picture)
-                    : asset('assets/auth/images/users/avatar2.png') }}"
-                    alt="{{ Auth::user()->name }}" class="avatar-md rounded-circle">
+                <img src="{{ Auth::user()->display_picture_url }}"
+                    alt="{{ Auth::user()->name }}" class="avatar-md rounded-circle"
+                    onerror="this.src='{{ asset('assets/auth/images/users/avatar.png') }}'">
             </div>
             <div class="mt-3">
                 <h4 class="font-size-16 mb-1">{{ Auth::user()->name }}</h4>

@@ -87,6 +87,31 @@ class User extends Authenticatable
             'erp_token_expires_at' => 'datetime',
         ];
     }
+
+    public function getDisplayPictureUrlAttribute(): string
+    {
+        if ($this->profile_picture) {
+            return asset('storage/' . ltrim($this->profile_picture, '/'));
+        }
+
+        if ($this->erp_picture) {
+            if (filter_var($this->erp_picture, FILTER_VALIDATE_URL)) {
+                return $this->erp_picture;
+            }
+
+            $baseUrl = rtrim(config('services.erp.web_url'), '/');
+            $path = ltrim($this->erp_picture, '/');
+
+            if (str_starts_with($path, 'storage/')) {
+                return $baseUrl . '/' . $path;
+            }
+
+            return $baseUrl . '/storage/emp_profile_images/' . $path;
+        }
+
+        return asset('assets/auth/images/users/avatar.png');
+    }
+
     public static function getBranchAttribute($branchId)
     {
         $branchId = $branchId; // use the provided branch ID or fallback to the user's branch_id

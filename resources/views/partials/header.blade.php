@@ -387,10 +387,9 @@
                 <button type="button" class="btn header-item waves-effect" id="page-header-user-dropdown"
                     data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     <img class="rounded-circle header-profile-user"
-                        src="{{ Auth::user()->profile_picture
-                            ? asset('storage/' . Auth::user()->profile_picture)
-                            : asset('assets/auth/images/users/avatar.png') }}"
-                        alt="Header Avatar">
+                        src="{{ Auth::user()->display_picture_url }}"
+                        alt="Header Avatar"
+                        onerror="this.src='{{ asset('assets/auth/images/users/avatar.png') }}'">
                     <span class="d-none d-xl-inline-block ms-1">{{ Auth::user()->name }}</span>
                     <i class="mdi mdi-chevron-down d-none d-xl-inline-block"></i>
                 </button>

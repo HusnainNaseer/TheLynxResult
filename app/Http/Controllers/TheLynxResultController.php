@@ -367,7 +367,10 @@ class TheLynxResultController extends Controller
         $result = StudentResult::findOrFail($id);
         $user = auth()->user();
 
-        if (!$user->hasRole('Coordinator') || !$this->canAccessResultSection($user, $result->branch_id, $result->class_id, $result->section_id)) {
+        if (
+            (!$user->hasRole('Admin') && !$user->hasRole('Coordinator'))
+            || !$this->canAccessResultSection($user, $result->branch_id, $result->class_id, $result->section_id)
+        ) {
             abort(403, 'Unauthorized access');
         }
 
@@ -381,7 +384,7 @@ class TheLynxResultController extends Controller
         }
 
         if (!$this->approveCoordinatorResult($result, $user)) {
-            return back()->with('error', 'Only results forwarded to Coordinator can be approved.');
+            return back()->with('error', 'This result cannot be approved from your current role or status.');
         }
 
         return back()->with('success', 'Result approved successfully.');
@@ -732,6 +735,24 @@ class TheLynxResultController extends Controller
             abort(403, 'Unauthorized access');
         }
 
+        return view('results.final_result_card', $this->resultCardViewData($student));
+    }
+
+    public function publicResult(string $encodedId)
+    {
+        $resultId = $this->decodeResultId($encodedId);
+
+        if (!$resultId) {
+            abort(404);
+        }
+
+        $student = StudentResult::with('student', 'marks.subject', 'session')->findOrFail($resultId);
+
+        return view('results.public_result_card', $this->resultCardViewData($student));
+    }
+
+    private function resultCardViewData(StudentResult $student): array
+    {
         $creator = User::findOrFail($student->created_by);
         $branch = Branch::where('erp_branch_id', $student->branch_id)->first();
         $subjects = ClassSubject::where('class_subjects.class_id', $student->class_id)
@@ -758,8 +779,19 @@ class TheLynxResultController extends Controller
         $highestPercentages = $this->highestClassPercentagesForReport($student, $subjects);
         $classTeacher = $this->classTeacherForReport($student, $subjects);
         $classTeacherName = $classTeacher?->name ?? '';
+        $encodedResultId = $this->encodeResultId($student->id);
+        $publicResultUrl = route('public.result', $encodedResultId);
 
-        return view('results.final_result_card', compact('student', 'creator', 'branch', 'subjects', 'classTeacherName', 'highestPercentages'));
+        return compact(
+            'student',
+            'creator',
+            'branch',
+            'subjects',
+            'classTeacherName',
+            'highestPercentages',
+            'encodedResultId',
+            'publicResultUrl'
+        );
     }
 
     public function edit($id)
@@ -1193,9 +1225,8 @@ class TheLynxResultController extends Controller
                 && $student->result->workflow_status !== 'coordinator_approved'
                 && $user->hasRole('Admin');
             $student->can_approve_result = $student->result
-                && $user->hasRole('Coordinator')
-                && !$user->hasRole('Admin')
-                && $student->result->workflow_status === 'forwarded_to_coordinator'
+                && ($user->hasRole('Admin') || $user->hasRole('Coordinator'))
+                && $student->result->workflow_status !== 'coordinator_approved'
                 && $this->canAccessResultSection($user, $student->result->branch_id, $student->result->class_id, $student->result->section_id);
             $student->workflow_status_label = $this->workflowStatusLabel($student->result);
 
@@ -1219,9 +1250,8 @@ class TheLynxResultController extends Controller
             $result->class_name = $classMap[$result->class_id] ?? ($result->class ?: 'N/A');
             $result->section_display = $sectionMap[$result->section_id] ?? ($result->section ?: 'N/A');
             $result->workflow_status_label = $this->workflowStatusLabel($result);
-            $result->can_approve_result = $user->hasRole('Coordinator')
-                && !$user->hasRole('Admin')
-                && $result->workflow_status === 'forwarded_to_coordinator'
+            $result->can_approve_result = ($user->hasRole('Admin') || $user->hasRole('Coordinator'))
+                && $result->workflow_status !== 'coordinator_approved'
                 && $this->canAccessResultSection($user, $result->branch_id, $result->class_id, $result->section_id);
             $result->can_edit_result = $this->canEditResult($user, $result);
             $result->can_delete_result = $result->workflow_status !== 'coordinator_approved'
@@ -1289,7 +1319,10 @@ class TheLynxResultController extends Controller
             'canEditForm' => $canEditForm,
             'canForwardToClassTeacher' => $isTeacherOnly && $canEditForm && !$isClassTeacher && (!$result || $result->workflow_status === 'draft'),
             'canForwardToCoordinator' => $isTeacherOnly && $canEditForm && $isClassTeacher && (!$result || in_array($result->workflow_status, ['draft', 'forwarded_to_class_teacher'], true)),
-            'canCoordinatorApprove' => $user->hasRole('Coordinator') && !$user->hasRole('Admin') && $result?->workflow_status === 'forwarded_to_coordinator',
+            'canCoordinatorApprove' => $result
+                && ($user->hasRole('Admin') || $user->hasRole('Coordinator'))
+                && $result->workflow_status !== 'coordinator_approved'
+                && $this->canAccessResultSection($user, $result->branch_id, $result->class_id, $result->section_id),
             'workflowStatusLabel' => $this->workflowStatusLabel($result),
             'formAction' => $result ? route('results.update', $result->id) : route('student_result.store'),
         ];
@@ -1361,11 +1394,11 @@ class TheLynxResultController extends Controller
 
     private function approveCoordinatorResult(StudentResult $result, User $user): bool
     {
-        if (!$user->hasRole('Coordinator') || $user->hasRole('Admin')) {
+        if (!$user->hasRole('Admin') && !$user->hasRole('Coordinator')) {
             return false;
         }
 
-        if ($result->workflow_status !== 'forwarded_to_coordinator') {
+        if ($result->workflow_status === 'coordinator_approved') {
             return false;
         }
 
@@ -1584,6 +1617,25 @@ class TheLynxResultController extends Controller
         }
 
         return null;
+    }
+
+    private function encodeResultId(int $id): string
+    {
+        return rtrim(strtr(base64_encode((string) $id), '+/', '-_'), '=');
+    }
+
+    private function decodeResultId(string $encodedId): ?int
+    {
+        $encodedId = strtr($encodedId, '-_', '+/');
+        $padding = strlen($encodedId) % 4;
+
+        if ($padding) {
+            $encodedId .= str_repeat('=', 4 - $padding);
+        }
+
+        $decoded = base64_decode($encodedId, true);
+
+        return $decoded !== false && ctype_digit($decoded) ? (int) $decoded : null;
     }
 
     private function highestClassPercentagesForReport(StudentResult $result, $subjects): array
