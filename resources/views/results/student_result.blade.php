@@ -137,7 +137,7 @@
                                     <th>Status</th>
                                     <th>Grade</th>
                                     <th>Percentage</th>
-                                    <th style="width: 100px;">Actions</th>
+                                    <th style="width: 180px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="studentRows">
@@ -153,6 +153,8 @@
             </div>
         </div>
     </div>
+
+    @include('results.partials.term_result_modal')
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {

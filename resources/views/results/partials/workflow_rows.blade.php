@@ -12,11 +12,20 @@
         <td>{{ $result->overall_grade ?? 'N/A' }}</td>
         <td>{{ $result->overall_percentage !== null ? $result->overall_percentage . '%' : 'N/A' }}</td>
         <td>{{ $result->coordinator_approved_at?->format('d M Y h:i A') ?? 'N/A' }}</td>
-        <td style="width: 100px;">
+        <td style="width: 180px;">
             <div class="d-flex flex-wrap gap-1 align-items-center">
                 <a href="{{ route('results.show', $result->id) }}" class="btn btn-info btn-sm">
                     <i class="ri-eye-line"></i>
                 </a>
+                <button type="button" class="btn btn-outline-secondary btn-sm term-result-btn"
+                    title="Print term result"
+                    data-student="{{ $result->name }}"
+                    data-term-one-url="{{ route('results.term-card', [$result->id, 'one']) }}"
+                    data-term-two-url="{{ route('results.term-card', [$result->id, 'two']) }}"
+                    data-has-term-one="{{ $result->has_term_one_result ? '1' : '0' }}"
+                    data-has-term-two="{{ $result->has_term_two_result ? '1' : '0' }}">
+                    Term
+                </button>
 
                 @if ($result->can_edit_result)
                     <a href="{{ route('results.edit', $result->id) }}" class="btn btn-warning btn-sm">

@@ -751,6 +751,35 @@ class TheLynxResultController extends Controller
         return view('results.public_result_card', $this->resultCardViewData($student));
     }
 
+    public function termResultCard($id, string $term)
+    {
+        $term = strtolower($term);
+        $termKey = match ($term) {
+            'one', 'term-one', 'first', '1' => 'term_one',
+            'two', 'term-two', 'second', '2' => 'term_two',
+            default => null,
+        };
+
+        if (!$termKey) {
+            abort(404);
+        }
+
+        $student = StudentResult::with('student', 'marks.subject', 'session')->findOrFail($id);
+        $user = auth()->user();
+
+        if (
+            (!$user->hasRole('Admin') && !$user->hasRole('Coordinator'))
+            || !$this->canAccessResultSection($user, $student->branch_id, $student->class_id, $student->section_id)
+        ) {
+            abort(403, 'Unauthorized access');
+        }
+
+        return view('results.term_result_card', array_merge(
+            $this->resultCardViewData($student),
+            ['termKey' => $termKey]
+        ));
+    }
+
     private function resultCardViewData(StudentResult $student): array
     {
         $creator = User::findOrFail($student->created_by);
@@ -1228,6 +1257,10 @@ class TheLynxResultController extends Controller
                 && ($user->hasRole('Admin') || $user->hasRole('Coordinator'))
                 && $student->result->workflow_status !== 'coordinator_approved'
                 && $this->canAccessResultSection($user, $student->result->branch_id, $student->result->class_id, $student->result->section_id);
+            $student->has_term_one_result = $student->result
+                && ((float) $student->result->grand_term_one > 0 || (float) $student->result->percentage_term_one > 0);
+            $student->has_term_two_result = $student->result
+                && ((float) $student->result->grand_term_two > 0 || (float) $student->result->percentage_term_two > 0);
             $student->workflow_status_label = $this->workflowStatusLabel($student->result);
 
             return $student;
@@ -1256,6 +1289,8 @@ class TheLynxResultController extends Controller
             $result->can_edit_result = $this->canEditResult($user, $result);
             $result->can_delete_result = $result->workflow_status !== 'coordinator_approved'
                 && $user->hasRole('Admin');
+            $result->has_term_one_result = (float) $result->grand_term_one > 0 || (float) $result->percentage_term_one > 0;
+            $result->has_term_two_result = (float) $result->grand_term_two > 0 || (float) $result->percentage_term_two > 0;
 
             return $result;
         }));

@@ -218,6 +218,9 @@ Route::middleware('auth', 'role:Admin|Teacher|Coordinator')->group(function () {
         ->middleware('role:Admin|Coordinator')
         ->name('results.coordinator-approve');
 
+    Route::get('/results/{id}/term/{term}', [TheLynxResultController::class, 'termResultCard'])
+        ->name('results.term-card');
+
     Route::get('/results/{id}', [TheLynxResultController::class, 'show'])
         ->name('results.show');
 

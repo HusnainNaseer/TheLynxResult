@@ -26,13 +26,22 @@
         </td>
         <td>{{ $result?->overall_grade ?? 'N/A' }}</td>
         <td>{{ $result?->overall_percentage !== null ? $result->overall_percentage . '%' : 'N/A' }}</td>
-        <td style="width: 100px;">
+        <td style="width: 180px;">
             <div class="d-flex flex-wrap gap-1 align-items-center">
             @if ($result)
                 @if ($canManageResults)
                     <a href="{{ route('results.show', $result->id) }}" class="btn btn-info btn-sm">
                         <i class="ri-eye-line"></i>
                     </a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm term-result-btn"
+                        title="Print term result"
+                        data-student="{{ $student->stdname }}"
+                        data-term-one-url="{{ route('results.term-card', [$result->id, 'one']) }}"
+                        data-term-two-url="{{ route('results.term-card', [$result->id, 'two']) }}"
+                        data-has-term-one="{{ $student->has_term_one_result ? '1' : '0' }}"
+                        data-has-term-two="{{ $student->has_term_two_result ? '1' : '0' }}">
+                        Term
+                    </button>
                 @endif
 
                 @if ($student->can_edit_result)

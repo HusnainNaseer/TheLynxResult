@@ -91,7 +91,7 @@
                                     <th>Grade</th>
                                     <th>Percentage</th>
                                     <th>Approved Date</th>
-                                    <th style="width: 100px;">Actions</th>
+                                    <th style="width: 180px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -107,4 +107,6 @@
             </div>
         </div>
     </div>
+
+    @include('results.partials.term_result_modal')
 @endsection
