@@ -1,14 +1,13 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    RewriteRule ^public/ - [L]
-    RewriteRule ^index\.php(/.*)?$ - [L]
+    RewriteRule ^assets/(.*)$ public/assets/$1 [L]
+    RewriteRule ^css/(.*)$ public/css/$1 [L]
+    RewriteRule ^js/(.*)$ public/js/$1 [L]
+    RewriteRule ^storage/(.*)$ public/storage/$1 [L]
 
-    RewriteRule ^$ index.php [L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
 
-    RewriteCond %{DOCUMENT_ROOT}/result/public/$1 -f [OR]
-    RewriteCond %{DOCUMENT_ROOT}/result/public/$1 -d
-    RewriteRule ^(.*)$ public/$1 [L]
-
-    RewriteRule ^(.*)$ index.php/$1 [L]
+    RewriteRule ^ index.php [L]
 </IfModule>

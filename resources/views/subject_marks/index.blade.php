@@ -54,8 +54,8 @@
                                     <thead>
                                         <tr>
                                             <th>Subject Name</th>
-                                            <th>Term One Mark</th>
-                                            <th>Term Two Mark</th>
+                                            <th>First Term Mark</th>
+                                            <th>Second Term Mark</th>
                                             <th class="text-center">Actions</th>
                                     </thead>
                                     <tbody>

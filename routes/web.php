@@ -20,6 +20,7 @@ use App\Models\Session;
 use App\Models\SubjectWiseMarks;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Artisan;
 
 Route::get('/test-role', function () {
     $user = Auth::user();
@@ -37,7 +38,16 @@ Route::get('/test-role', function () {
         'is_admin' => $user->hasRole('admin'),
     ];
 })->middleware('auth');
+Route::get('/clear', function () {
 
+    Artisan::call('optimize:clear');
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Application cache cleared successfully.'
+    ]);
+
+})->name('optimize.clear');
 Route::middleware(['auth', 'role:Admin|Coordinator'])->group(function () {
     Route::get('/teachers', [TeachersController::class, 'index'])->name('teachers.index');
     Route::get('/teachers/create', [TeachersController::class, 'create'])->name('teachers.create');
@@ -65,7 +75,6 @@ Route::get('/', function () {
 */
 Route::get('/teacher/search', [TeachersController::class, 'search_teacher'])
     ->name('teacher.search');
-
 Route::get('/public_result/{encodedId}', [TheLynxResultController::class, 'publicResult'])
     ->name('public.result');
 
@@ -215,9 +224,8 @@ Route::middleware('auth', 'role:Admin|Teacher|Coordinator')->group(function () {
         ->name('results.forward');
 
     Route::post('/results/{id}/coordinator-approve', [TheLynxResultController::class, 'coordinatorApprove'])
-        ->middleware('role:Admin|Coordinator')
+        ->middleware('role:Coordinator')
         ->name('results.coordinator-approve');
-
     Route::get('/results/{id}/term/{term}', [TheLynxResultController::class, 'termResultCard'])
         ->name('results.term-card');
 
@@ -287,7 +295,7 @@ Route::middleware(['auth', 'role:Admin|Coordinator'])->prefix('assign-subjects')
 
     // Store a new assignment
     Route::post('/store',           [AssignSubjectController::class, 'store'])->name('store');
-    Route::post('/update-group',    [AssignSubjectController::class, 'updateGroup'])->name('update-group');
+   	Route::post('/update-group',    [AssignSubjectController::class, 'updateGroup'])->name('update-group');
 
     // Delete an assignment
     Route::delete('/{assignment}',  [AssignSubjectController::class, 'destroy'])->name('destroy');

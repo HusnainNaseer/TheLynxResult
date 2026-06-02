@@ -29,17 +29,17 @@
 
                                 <div class="col-md-12">
                                     <div class="mb-3">
-                                        <label class="form-label">Term one Working Days </label>
+                                        <label class="form-label">First Term Working Days</label>
                                         <input type="number" name="term_one_working_days" class="form-control"
-                                            placeholder="Term 1 Working Days" required>
+                                            placeholder="First Term Working Days" required>
                                     </div>
                                 </div>
 
                                 <div class="col-md-12">
                                     <div class="mb-3">
-                                        <label class="form-label">Term Two Working Days</label>
+                                        <label class="form-label">Second Term Working Days</label>
                                         <input type="number" name="term_two_working_days" class="form-control"
-                                            placeholder="Term 2 Working Days" required>
+                                            placeholder="Second Term Working Days" required>
                                     </div>
                                 </div>
 

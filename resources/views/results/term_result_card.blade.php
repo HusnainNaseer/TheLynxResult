@@ -24,7 +24,7 @@
             min-height: 90vh;
             margin: 12px auto;
             background: #fff;
-            padding: 36px 54px 36px;
+            padding: 54px 54px 36px;
         }
 
         .header {
@@ -34,13 +34,13 @@
         }
 
         .school-logo {
-            position: absolute;
-            top: 0;
-            left: 57%;
-            transform: translateX(100px);
-            width: 75px;
-            height: 75px;
-            object-fit: contain;
+	       position: absolute;
+		    top: 0;
+		    left: 0;
+		    transform: translateX(33px);
+		    width: 80px;
+		    height: 80px;
+		    object-fit: contain;
         }
 
         .school-name {
@@ -69,6 +69,7 @@
             font-weight: 700;
             text-transform: uppercase;
         }
+
         
         .branch-name {
             margin-top: 10px;
@@ -76,12 +77,14 @@
         }
 
         .report-bar {
-            margin: 14px -54px 10px;
-            padding: 6px;
-            background: #d9d9d9;
-            text-align: center;
-            font-size: 12px;
-            font-weight: 700;
+				position: relative;
+				padding: 6px 26px;
+				background: #c6d9f1;
+				text-align: center;
+				font-size: 12px;
+				width: fit-content;
+				font-weight: 700;
+				left: 40%;
         }
 
         table {
@@ -90,7 +93,7 @@
         }
 
         .student-info {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 700;
             margin-bottom: 12px;
             margin-top: 12px;
@@ -142,7 +145,7 @@
         }
 
         .summary-line {
-            margin: 20px auto 12px;
+            margin: 25px auto 25px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -153,7 +156,6 @@
 
         .summary-line .line-value {
             min-width: 74px;
-            background: #00b050;
         }
 
         .grading {
@@ -164,7 +166,7 @@
         }
 
         .grading th {
-            background: #5b9bd5;
+            background: #c6d9f1;
             padding: 4px;
         }
 
@@ -175,7 +177,7 @@
         }
 
         .remarks-box {
-            margin-top: 18px;
+            margin-top: 30px;
             border: 1px solid #000;
             padding: 12px;
             min-height: 118px;
@@ -188,7 +190,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 120px;
-            margin-top: 42px;
+            margin-top: 75px;
             font-size: 10px;
             text-align: center;
         }
@@ -261,22 +263,21 @@
     <div class="sheet">
         <div class="header">
             <h1 class="school-name">The Lynx School</h1>
-            <img src="{{ asset('public/images/lynx_logo.png') }}" alt="The Lynx School" class="school-logo">
+            <img src="{{ asset('images/lynx_logo.png') }}" alt="The Lynx School" class="school-logo">
             <div class="branch-name">{{ $branchName }}</div>
             <div class="branch-meta">Phone: {{ $branchPhone }} &nbsp;&nbsp;&nbsp; Email: {{ $branchEmail }}</div>
-            <div class="report-bar">{{ $termTitle }}</div>
             <div class="session-title">Academic Year {{ $student->session?->title ?? '' }}</div>
+            <div class="report-bar">{{ $termTitle }}</div>
         </div>
 
         <table class="student-info">
             <tr>
-                <td>Serial #: <span class="line-value">{{ $student->rollno }}</span></td>
-                <td>Class / Section: <span class="line-value">{{ $student->class }} / {{ $student->section }}</span></td>
-                <td>Attendance: <span class="line-value">{{ $formatNumber($workingDays) }}/{{ $formatNumber($sessionWorkingDays) }}</span></td>
-            </tr>
-            <tr>
                 <td colspan="2">Student Name: <span class="line-value wide">{{ $student->name }}</span></td>
                 <td>Roll No: <span class="line-value">{{ $student->rollno }}</span></td>
+            </tr>
+            <tr>
+                <td colspan="2">Class / Section: <span class="line-value">{{ $student->class }} / {{ $student->section }}</span></td>
+                <td>Attendance: <span class="line-value">{{ $formatNumber($workingDays) }}/{{ $formatNumber($sessionWorkingDays) }}</span></td>
             </tr>
         </table>
 

@@ -23,17 +23,17 @@
 
                                 <div class="col-md-12">
                                     <div class="mb-3">
-                                        <label class="form-label">Term One Mark</label>
+                                        <label class="form-label">First Term Mark</label>
                                         <input type="number" name="term_one_marks" value="{{ $submark->term_one_marks }}"
-                                            class="form-control" placeholder="Term 1 Marks" required>
+                                            class="form-control" placeholder="First Term Marks" required>
                                     </div>
                                 </div>
 
                                 <div class="col-md-12">
                                     <div class="mb-3">
-                                        <label class="form-label">Term Two Mark</label>
+                                        <label class="form-label">Second Term Mark</label>
                                         <input type="number" name="term_two_marks" value="{{ $submark->term_two_marks }}"
-                                            class="form-control" placeholder="Term 2 Marks" required>
+                                            class="form-control" placeholder="Second Term Marks" required>
                                     </div>
                                 </div>
 

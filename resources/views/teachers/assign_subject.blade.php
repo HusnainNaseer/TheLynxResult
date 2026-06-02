@@ -300,9 +300,17 @@ $(document).ready(function () {
         `);
     }
 
+    function formatSubjectName(subject) {
+        const firstTermMarks = subject.term_one_marks ?? 0;
+        const secondTermMarks = subject.term_two_marks ?? 0;
+
+        return subject.name + ' (First Term: ' + firstTermMarks + ', Second Term: ' + secondTermMarks + ')';
+    }
+
     function appendSubjectOption(subject) {
         const subjectId = String(subject.id);
         const disabled = subject.disabled && !editingSubjectIds.has(subjectId);
+        const subjectName = formatSubjectName(subject);
         const suffix = disabled && subject.assigned_to
             ? ' - assigned to ' + subject.assigned_to
             : '';
@@ -313,7 +321,7 @@ $(document).ready(function () {
                 data-name="${escapeHtml(subject.name)}"
                 ${disabled ? 'disabled' : ''}
             >
-                ${escapeHtml(subject.name + suffix)}
+                ${escapeHtml(subjectName + suffix)}
             </option>
         `);
     }

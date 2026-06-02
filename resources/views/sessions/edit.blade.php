@@ -39,24 +39,24 @@
 
                                 <div class="col-md-12">
                                     <div class="mb-3">
-                                        <label class="form-label">Term one Working Days </label>
+                                        <label class="form-label">First Term Working Days</label>
                                         <input type="number"
                                                value="{{ old('t1_working_days', $session->t1_working_days) }}"
                                                name="t1_working_days"
                                                class="form-control"
-                                               placeholder="Term 1 Working Days"
+                                               placeholder="First Term Working Days"
                                                required>
                                     </div>
                                 </div>
 
                                 <div class="col-md-12">
                                     <div class="mb-3">
-                                        <label class="form-label">Term Two Working Days</label>
+                                        <label class="form-label">Second Term Working Days</label>
                                         <input type="number"
                                                value="{{ old('t2_working_days', $session->t2_working_days) }}"
                                                name="t2_working_days"
                                                class="form-control"
-                                               placeholder="Term 2 Working Days"
+                                               placeholder="Second Term Working Days"
                                                required>
                                     </div>
                                 </div>

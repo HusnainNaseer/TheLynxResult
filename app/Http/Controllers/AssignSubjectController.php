@@ -501,7 +501,7 @@ class AssignSubjectController extends Controller
     }
 
     /** GET /assign-subjects/api/subjects?branch_id=X&class_id=X&section_id=X */
-    public function apiSubjects(Request $request)
+	public function apiSubjects(Request $request)
     {
         $branchId = $request->query('branch_id');
         $classId = $request->query('class_id');
@@ -536,7 +536,12 @@ class AssignSubjectController extends Controller
             ->where('class_subjects.branch_id', $branchId)
             ->join('subject_wise_marks', 'class_subjects.subject_id', '=', 'subject_wise_marks.id')
             ->where('subject_wise_marks.session_id', $activeSession->id)
-            ->select('subject_wise_marks.id', 'subject_wise_marks.subject_name as name')
+            ->select(
+                'subject_wise_marks.id',
+                'subject_wise_marks.subject_name as name',
+                'subject_wise_marks.term_one_marks',
+                'subject_wise_marks.term_two_marks'
+            )
             ->orderBy('subject_wise_marks.subject_name')
             ->get();
 
@@ -572,6 +577,8 @@ class AssignSubjectController extends Controller
                 return [
                     'id' => $subject->id,
                     'name' => $subject->name,
+                    'term_one_marks' => $subject->term_one_marks,
+                    'term_two_marks' => $subject->term_two_marks,
                     'disabled' => (bool) $assignment,
                     'assigned_to' => $assignment
                         ? ($teacherNames[$assignment->teacher_id] ?? 'another teacher')

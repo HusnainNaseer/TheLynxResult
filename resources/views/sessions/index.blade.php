@@ -69,8 +69,8 @@
                                             <th>Title</th>
                                             <th>ERP Session ID</th>
                                             <th>Status</th>
-                                            <th>Total Working Days Term One</th>
-                                            <th>Total Working Days Term two</th>
+											<th>Total Working Days First Term</th>
+                                            <th>Total Working Days Second Term</th>
                                             <th class="text-center">Actions</th>
                                     </thead>
                                     <tbody>
